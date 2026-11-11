@@ -1,0 +1,143 @@
+openapi: 3.1.0
+info:
+  title: Disputes AI Copilot - Create and Get Dispute
+  version: 0.1.0
+paths:
+  /disputes:
+    post:
+      summary: Open a dispute
+      operationId: createDispute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisputeCreate"
+            example:
+              transaction_id: txn_0001
+              customer_id: cust_0001
+              amount: "125.50"
+              currency: USD
+              reason: duplicate_charge
+              description: Charged twice for the same purchase
+      responses:
+        "201":
+          description: Dispute created in state open
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Path of the new dispute, /disputes/{id}
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dispute"
+        "422":
+          description: Invalid input; no dispute was created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /disputes/{dispute_id}:
+    get:
+      summary: Get a dispute by id
+      operationId: getDispute
+      parameters:
+        - name: dispute_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The dispute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dispute"
+        "404":
+          description: No dispute with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The id is not a valid UUID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    Reason:
+      type: string
+      enum:
+        - duplicate_charge
+        - unrecognized_charge
+        - product_not_received
+        - incorrect_amount
+        - devolution
+    DisputeCreate:
+      type: object
+      additionalProperties: false
+      required: [transaction_id, customer_id, amount, currency, reason]
+      properties:
+        transaction_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        customer_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        amount:
+          type: string
+          description: Decimal greater than 0 with at most 2 decimal places and at most 12 digits in total
+          example: "125.50"
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        reason:
+          $ref: "#/components/schemas/Reason"
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+    Dispute:
+      allOf:
+        - $ref: "#/components/schemas/DisputeCreate"
+        - type: object
+          required: [id, state, created_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            state:
+              type: string
+              enum: [open]
+            created_at:
+              type: string
+              format: date-time
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              enum: [validation_error, not_found]
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
