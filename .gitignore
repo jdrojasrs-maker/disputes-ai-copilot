@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Entorno y secretos (NUNCA versionar claves)
+.env
+.env.*
+!.env.example
+
+# IDE / SO
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Datos locales
+*.sqlite3
+pgdata/
+chroma_data/
