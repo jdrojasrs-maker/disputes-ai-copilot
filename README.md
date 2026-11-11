@@ -1,6 +1,6 @@
 # Disputes AI Copilot
 
-![CI](https://github.com/OWNER/disputes-ai-copilot/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/jdrojasrs-maker/disputes-ai-copilot/actions/workflows/ci.yml/badge.svg)
 
 Servicio **FastAPI** para gestionar disputas de transacciones (un cliente reclama un cobro), con un copiloto de IA que ayuda a clasificar y resolver casos.
 
