@@ -229,9 +229,11 @@ UUID and get 404; fetch `not-a-uuid` and get 422.
   Verified 2026-11-12: 76 tests pass, ruff clean; a scan of changed and new files for keys,
   tokens and emails found only the text of this task; the only ids used are `txn_0001` and
   `cust_0001`; `.env` exists locally but is git-ignored and not tracked
-- [ ] T029 Before committing, the owner reads every changed file and can explain each line
+- [x] T029 Before committing, the owner reads every changed file and can explain each line
   (CLAUDE.md rule); then open a PR from `feat/001-create-and-get-dispute` into `develop` and
   confirm CI is green on the PR before merging (constitution, Development Workflow)
+  — Owner confirmed the review on 2026-11-13; PR #1 opened into `develop`; CI check `test`
+  passed on the PR.
 
 ---
 
