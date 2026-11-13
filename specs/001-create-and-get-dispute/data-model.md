@@ -52,7 +52,8 @@ lifetime and is provided to routes through a FastAPI dependency so tests can rep
 | Situation | HTTP | code |
 |-----------|------|------|
 | Invalid body, or malformed id in the path | 422 | `validation_error` |
-| Well-formed id with no dispute | 404 | `not_found` |
+| Well-formed id with no dispute, or an unknown route | 404 | `not_found` |
+| Method not supported on a route (for example `PUT /disputes/{id}`) | 405 | `method_not_allowed` |
 
 Body shape is defined in [contracts/disputes.openapi.yaml](contracts/disputes.openapi.yaml).
 

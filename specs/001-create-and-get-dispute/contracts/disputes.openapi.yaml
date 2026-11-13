@@ -128,7 +128,7 @@ components:
           properties:
             code:
               type: string
-              enum: [validation_error, not_found]
+              enum: [validation_error, not_found, method_not_allowed]
             message:
               type: string
             details:

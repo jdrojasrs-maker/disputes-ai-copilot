@@ -69,7 +69,8 @@ decisions the spec deferred to planning.
              "details": [{"field": "amount", "message": "Input should be greater than 0"}]}}
   ```
 
-  Codes: `validation_error` (HTTP 422), `not_found` (HTTP 404). `details` is empty for
+  Codes: `validation_error` (HTTP 422), `not_found` (HTTP 404, both a missing dispute and an
+  unknown route), `method_not_allowed` (HTTP 405). Other framework HTTP errors use `http_error`. `details` is empty for
   `not_found`. A custom handler for `RequestValidationError` and a handler for the not-found
   domain exception produce this shape.
 - **Rationale**: Constitution IV requires one consistent format. FastAPI's default 422 body
