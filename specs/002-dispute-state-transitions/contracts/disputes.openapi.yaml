@@ -1,0 +1,233 @@
+openapi: 3.1.0
+info:
+  title: Disputes AI Copilot - Disputes and State Transitions
+  version: 0.2.0
+  description: >
+    Full current contract (create, get, transition). It replaces the contract of feature 001,
+    which is kept unchanged as the record of that feature.
+paths:
+  /disputes:
+    post:
+      summary: Open a dispute
+      operationId: createDispute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisputeCreate"
+            example:
+              transaction_id: txn_0001
+              customer_id: cust_0001
+              amount: "125.50"
+              currency: USD
+              reason: duplicate_charge
+              description: Charged twice for the same purchase
+      responses:
+        "201":
+          description: Dispute created in state open, with empty history
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Path of the new dispute, /disputes/{id}
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dispute"
+        "422":
+          description: Invalid input; no dispute was created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /disputes/{dispute_id}:
+    get:
+      summary: Get a dispute by id, including its history
+      operationId: getDispute
+      parameters:
+        - $ref: "#/components/parameters/DisputeId"
+      responses:
+        "200":
+          description: The dispute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dispute"
+        "404":
+          description: No dispute with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The id is not a valid UUID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /disputes/{dispute_id}/transitions:
+    post:
+      summary: Move a dispute to another state
+      operationId: transitionDispute
+      parameters:
+        - $ref: "#/components/parameters/DisputeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransitionRequest"
+            example:
+              to_state: under_review
+              note: Documents received, starting review
+      responses:
+        "200":
+          description: The transition was applied; the updated dispute is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dispute"
+        "404":
+          description: No dispute with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >
+            The transition is not allowed from the dispute's current state (including a
+            transition to the same state, any transition out of a closed dispute, and a request
+            that lost a race with another transition). The dispute is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid body or id (unknown or missing to_state, unknown field, note too long, malformed id)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  parameters:
+    DisputeId:
+      name: dispute_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Reason:
+      type: string
+      enum:
+        - duplicate_charge
+        - unrecognized_charge
+        - product_not_received
+        - incorrect_amount
+        - refund_not_received
+    DisputeState:
+      type: string
+      description: resolved, rejected and withdrawn are terminal
+      enum:
+        - open
+        - under_review
+        - resolved
+        - rejected
+        - withdrawn
+    DisputeCreate:
+      type: object
+      additionalProperties: false
+      required: [transaction_id, customer_id, amount, currency, reason]
+      properties:
+        transaction_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        customer_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        amount:
+          type: string
+          description: Decimal greater than 0 with at most 2 decimal places and at most 12 digits in total
+          example: "125.50"
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        reason:
+          $ref: "#/components/schemas/Reason"
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+    TransitionRequest:
+      type: object
+      additionalProperties: false
+      required: [to_state]
+      properties:
+        to_state:
+          $ref: "#/components/schemas/DisputeState"
+        note:
+          type: [string, "null"]
+          maxLength: 1000
+          description: Empty or whitespace-only values are treated as no note
+    StateChange:
+      type: object
+      required: [from_state, to_state, note, changed_at]
+      properties:
+        from_state:
+          $ref: "#/components/schemas/DisputeState"
+        to_state:
+          $ref: "#/components/schemas/DisputeState"
+        note:
+          type: [string, "null"]
+        changed_at:
+          type: string
+          format: date-time
+    Dispute:
+      allOf:
+        - $ref: "#/components/schemas/DisputeCreate"
+        - type: object
+          required: [id, state, created_at, updated_at, history]
+          properties:
+            id:
+              type: string
+              format: uuid
+            state:
+              $ref: "#/components/schemas/DisputeState"
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+              description: Equals created_at until the first transition; then the time of the latest transition
+            history:
+              type: array
+              description: Successful state changes, oldest first; empty for a new dispute
+              items:
+                $ref: "#/components/schemas/StateChange"
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              enum: [validation_error, not_found, method_not_allowed, invalid_transition]
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
