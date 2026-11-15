@@ -24,3 +24,6 @@ Thumbs.db
 *.sqlite3
 pgdata/
 chroma_data/
+
+# Contexto personal de Claude Code (no versionar)
+CLAUDE.local.md
