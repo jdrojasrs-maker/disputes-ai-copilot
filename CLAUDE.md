@@ -12,16 +12,17 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 - Idioma: español para conversar; código, specs, README y documentación del repo en inglés (este archivo es la excepción: es contexto de trabajo).
 
 ## Estado actual (actualizar al cerrar cada feature)
-- **Hecho:** feature 001 (crear y consultar disputas), fusionada a `develop` (PR #1). Feature 002 (transiciones de estado) implementada en la rama `feat/002-dispute-state-transitions`: falta que el dueño revise el código y abrir el PR hacia `develop` con el CI verde (T046).
-- **Siguiente:** Dockerfile e imagen en CI como cambio de infraestructura aparte; después, feature 003 (`LLMClient`).
+- **Hecho:** feature 001 (crear y consultar disputas), fusionada a `develop` (PR #1). Feature 002 (transiciones de estado), fusionada (PR #3), CI verde. Dockerfile e imagen en CI (rama `chore/dockerfile-and-ci-image`): el CI construye la imagen y prueba `/health`; falta el PR hacia `develop`.
+- **Siguiente:** feature 003 (`LLMClient`).
+- **Pendiente sin resolver:** dos cuelgues intermitentes en `test_a_closed_dispute_is_never_changed_by_simultaneous_requests` (causa no encontrada; mitigado con un timeout de 20 s en el helper `race`). Está declarado en el PR #3.
 - **Límites conocidos:** repositorio en memoria (se pierde al reiniciar; con varios workers cada proceso tiene su propia memoria); la atomicidad de las transiciones (un candado dentro del repositorio) solo vale dentro de un proceso; sin autenticación; sin componentes de IA.
 
 ## Roadmap (numeración tentativa; Spec Kit asigna la real)
 | # | Feature | Estado |
 |---|---|---|
 | 001 | Crear y consultar disputas | Hecha |
-| 002 | Transiciones de estado + concurrencia | Hecha (pendiente de PR) |
-| — | Dockerfile + imagen en CI (infraestructura) | Siguiente |
+| 002 | Transiciones de estado + concurrencia | Hecha |
+| — | Dockerfile + imagen en CI (infraestructura) | Hecha (pendiente de PR) |
 | 003 | `LLMClient`: interfaz, doble de prueba, adaptador Anthropic, adaptador Azure OpenAI | Pendiente |
 | 004 | `POST /disputes/intake`: texto libre a disputa validada (salida estructurada) | Pendiente |
 | 005 | Evals: dataset de 30 casos y script (aciertos, latencia, costo) | Pendiente |
@@ -37,6 +38,7 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 - `DisputeCreate` (entrada) separado de `Dispute` (registro); la entrada usa `extra="forbid"`.
 - Repositorio detrás de un `Protocol`; se reemplaza por PostgreSQL sin tocar las rutas.
 - Un solo formato de error para todos los errores, incluidos los del framework.
+- Imagen Docker en dos etapas, usuario no root y **un solo** proceso uvicorn (el almacén en memoria y su candado son por proceso). El CI la construye y prueba `/health`; no se publica en ningún registro hasta la feature 008.
 - Búsqueda vectorial con `pgvector` dentro de PostgreSQL, no una base vectorial aparte.
 - El agente se construye una sola vez, en LangGraph. Las pruebas unitarias nunca llaman a un modelo real: usan un doble de `LLMClient`.
 - Bank es solo lectura y con datos de ejemplo; la interacción pasa por una interfaz documentada.

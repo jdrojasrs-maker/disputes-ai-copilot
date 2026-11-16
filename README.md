@@ -74,7 +74,7 @@ Figures for quality, latency and cost will appear here only once they have been 
 
 ## Run it
 
-Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), and Docker (for PostgreSQL, used from feature 006 on).
+Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), and Docker (to build the image, and for PostgreSQL, used from feature 006 on).
 
 ```bash
 uv sync
@@ -82,6 +82,18 @@ uv run uvicorn disputes.main:app --reload
 # http://127.0.0.1:8000/docs
 uv run pytest
 ```
+
+### Docker image
+
+```bash
+docker build --tag disputes-ai-copilot .
+docker run --rm --publish 8000:8000 disputes-ai-copilot
+# http://127.0.0.1:8000/docs
+```
+
+The image is built in two stages (dependencies installed from `uv.lock` with `uv sync --locked`; the final stage holds only the virtual environment, with no uv, sources or dev tools), runs as a non-root user and has a health check on `GET /health`. It starts **one** uvicorn process on purpose: storage is in memory, so extra workers would each have their own data and their own lock.
+
+CI builds the image on every push and pull request, checks that the container does not run as root and that `GET /health` answers. The image is not pushed to any registry yet (public deployment is feature 008).
 
 ### Concurrency tests
 
