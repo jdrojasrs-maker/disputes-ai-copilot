@@ -189,7 +189,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/DisputeCreate"
         - type: object
-          required: [id, state, created_at, updated_at, history]
+          required: [id, state, description, created_at, updated_at, history]
           properties:
             id:
               type: string
@@ -218,7 +218,10 @@ components:
           properties:
             code:
               type: string
-              enum: [validation_error, not_found, method_not_allowed, invalid_transition]
+              description: >
+                Known values: validation_error, not_found, method_not_allowed,
+                invalid_transition. Any other HTTP error raised by the framework uses
+                http_error, so clients must not treat this list as closed.
             message:
               type: string
             details:
