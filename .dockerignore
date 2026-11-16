@@ -1,0 +1,27 @@
+# Keep the build context small and keep private or local files out of it.
+# README.md is NOT ignored: the build needs it (pyproject.toml declares it as the readme).
+
+# Git and local environments
+.git
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+
+# Secrets and private context (never part of an image)
+.env
+.env.*
+CLAUDE.local.md
+.claude
+
+# Not needed to run the service
+.github
+.specify
+specs
+docs
+tests
+CLAUDE.md
+docker-compose.yml
+Dockerfile
+.dockerignore

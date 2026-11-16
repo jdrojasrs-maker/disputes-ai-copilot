@@ -18,3 +18,30 @@ jobs:
         run: uv run ruff check .
       - name: Pruebas
         run: uv run pytest
+
+  image:
+    # Builds the Docker image and checks that it really starts. It is not pushed anywhere yet.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build --tag disputes-ai-copilot:ci .
+      - name: Check the container does not run as root
+        run: |
+          uid="$(docker run --rm --entrypoint id disputes-ai-copilot:ci -u)"
+          echo "container user id: $uid"
+          test "$uid" != "0"
+      - name: Smoke test (GET /health)
+        run: |
+          docker run --detach --name disputes --publish 8000:8000 disputes-ai-copilot:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/health; then
+              echo
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "The container did not answer /health in 30 s. Logs:"
+          docker logs disputes
+          exit 1
