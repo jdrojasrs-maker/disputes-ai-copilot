@@ -12,23 +12,16 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 - Idioma: español para conversar; código, specs, README y documentación del repo en inglés (este archivo es la excepción: es contexto de trabajo).
 
 ## Estado actual (actualizar al cerrar cada feature)
-- **Hecho:** feature 001 (crear y consultar disputas). Fusionada a `develop` (PR #1), CI verde.
-- **Siguiente:** feature 002, transiciones de estado (ver abajo). Después, Dockerfile e imagen en CI como cambio de infraestructura aparte.
-- **Límites conocidos:** repositorio en memoria (se pierde al reiniciar; con varios workers cada proceso tiene su propia memoria); único estado `open`; sin autenticación; sin componentes de IA.
-
-### Feature 002 — transiciones de estado
-- Estados: `open → under_review → resolved | rejected`, y `open → withdrawn`. Los estados finales (`resolved`, `rejected`, `withdrawn`) nunca se reabren.
-- Endpoint propuesto: `POST /disputes/{id}/transitions` con `{to_state, note}`.
-- Una transición inválida devuelve 409 con el mismo formato de error de la API (constitución II y IV).
-- Concurrencia: si dos transiciones incompatibles llegan a la vez sobre la misma disputa, se aplica exactamente una y la otra recibe 409. La implementación debe ser una transición condicional atómica en el repositorio ("cambia a X solo si el estado actual es Y"), no una lectura seguida de una escritura. En memoria es un candado dentro del repositorio; con PostgreSQL será un `UPDATE ... WHERE state = ...`. Se prueba con peticiones en paralelo.
-- Decisiones abiertas (propuestas, sin confirmar): renombrar el motivo `devolution` a `refund_not_received`; agregar `updated_at`; guardar un historial de cambios de estado.
+- **Hecho:** feature 001 (crear y consultar disputas), fusionada a `develop` (PR #1). Feature 002 (transiciones de estado) implementada en la rama `feat/002-dispute-state-transitions`: falta que el dueño revise el código y abrir el PR hacia `develop` con el CI verde (T046).
+- **Siguiente:** Dockerfile e imagen en CI como cambio de infraestructura aparte; después, feature 003 (`LLMClient`).
+- **Límites conocidos:** repositorio en memoria (se pierde al reiniciar; con varios workers cada proceso tiene su propia memoria); la atomicidad de las transiciones (un candado dentro del repositorio) solo vale dentro de un proceso; sin autenticación; sin componentes de IA.
 
 ## Roadmap (numeración tentativa; Spec Kit asigna la real)
 | # | Feature | Estado |
 |---|---|---|
 | 001 | Crear y consultar disputas | Hecha |
-| 002 | Transiciones de estado + concurrencia | Siguiente |
-| — | Dockerfile + imagen en CI (infraestructura) | Pendiente |
+| 002 | Transiciones de estado + concurrencia | Hecha (pendiente de PR) |
+| — | Dockerfile + imagen en CI (infraestructura) | Siguiente |
 | 003 | `LLMClient`: interfaz, doble de prueba, adaptador Anthropic, adaptador Azure OpenAI | Pendiente |
 | 004 | `POST /disputes/intake`: texto libre a disputa validada (salida estructurada) | Pendiente |
 | 005 | Evals: dataset de 30 casos y script (aciertos, latencia, costo) | Pendiente |
@@ -47,6 +40,10 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 - Búsqueda vectorial con `pgvector` dentro de PostgreSQL, no una base vectorial aparte.
 - El agente se construye una sola vez, en LangGraph. Las pruebas unitarias nunca llaman a un modelo real: usan un doble de `LLMClient`.
 - Bank es solo lectura y con datos de ejemplo; la interacción pasa por una interfaz documentada.
+- Estados: `open`, `under_review`, `resolved`, `rejected`, `withdrawn`. Cinco transiciones permitidas: `open → under_review`, `open → withdrawn`, `under_review → resolved`, `under_review → rejected`, `under_review → withdrawn`. `under_review → withdrawn` sí; `open → rejected` no. Los estados finales nunca se reabren y pasar al estado actual se rechaza. Las reglas viven en una sola tabla (`transitions.py`).
+- `POST /disputes/{id}/transitions` con `{to_state, note}`; una transición inválida devuelve 409 con código `invalid_transition` y el formato de error de la API.
+- Concurrencia: transición condicional atómica en el repositorio ("cambia a X solo si el estado actual es Y"), con un candado en memoria; con PostgreSQL será un `UPDATE ... WHERE state = ...`. Si falla, se responde 409 sin reintentar.
+- Motivo `devolution` renombrado a `refund_not_received`, sin alias para el valor viejo. `updated_at` en cada disputa y un historial de cambios (`history`) incrustado en la disputa.
 
 ## Stack y comandos
 Python 3.12, FastAPI, Pydantic v2, uv, ruff, pytest, Docker Compose. PostgreSQL con SQLAlchemy async y Alembic llega en la feature 006.

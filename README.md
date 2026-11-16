@@ -10,15 +10,27 @@ It is the AI half of a two-part system. **Bank** (a separate .NET, event-driven 
 
 ## What exists today
 
-Three endpoints, covered by automated tests:
+Four endpoints, covered by automated tests:
 
 | Method and path | What it does | Responses |
 |---|---|---|
 | `POST /disputes` | Opens a dispute. It always starts in state `open`. | `201` with the dispute and a `Location` header; `422` on invalid input |
 | `GET /disputes/{dispute_id}` | Fetches a dispute by id. | `200`; `404` if it does not exist; `422` if the id is not a UUID |
+| `POST /disputes/{dispute_id}/transitions` | Moves a dispute to another state, with an optional `note`. Returns the updated dispute. | `200`; `404` if it does not exist; `409` if the move is not allowed or the state changed while the request was handled; `422` on an invalid body or id |
 | `GET /health` | Liveness check. | `200` |
 
-Input fields: `transaction_id`, `customer_id`, `amount` (greater than 0, up to 2 decimals and 12 digits), `currency` (3 uppercase letters), `reason` (`duplicate_charge`, `unrecognized_charge`, `product_not_received`, `incorrect_amount`, `devolution`) and an optional `description` (up to 1000 characters). Unknown fields, such as `state`, are rejected.
+Input fields: `transaction_id`, `customer_id`, `amount` (greater than 0, up to 2 decimals and 12 digits), `currency` (3 uppercase letters), `reason` (`duplicate_charge`, `unrecognized_charge`, `product_not_received`, `incorrect_amount`, `refund_not_received`) and an optional `description` (up to 1000 characters). Unknown fields, such as `state`, are rejected.
+
+A dispute has one of five states: `open`, `under_review`, `resolved`, `rejected`, `withdrawn`. Exactly five moves are allowed:
+
+```text
+open         -> under_review | withdrawn
+under_review -> resolved | rejected | withdrawn
+```
+
+`resolved`, `rejected` and `withdrawn` are final: a closed dispute never reopens, and a move to the current state is refused. Any other move returns `409` with the code `invalid_transition` and leaves the dispute unchanged. The rules live in one table in `src/disputes/transitions.py`.
+
+Every dispute response also carries `updated_at` (equal to `created_at` until the first change) and `history`, the list of successful state changes, oldest first. Each entry has `from_state`, `to_state`, `note` and `changed_at`. A refused request adds no entry.
 
 Every error uses the same format, including unknown routes and wrong methods:
 
@@ -29,7 +41,7 @@ Every error uses the same format, including unknown routes and wrong methods:
 
 **Current limits:**
 - Disputes are stored **in memory**: they are lost on restart, and with several worker processes each process has its own copy.
-- The only state is `open`; a dispute cannot change state yet.
+- A transition is atomic (a lock inside the in-memory repository) only within one process. With several worker processes each has its own memory and its own lock; PostgreSQL (feature 006) is what removes that limit.
 - No authentication, and the referenced transaction is not checked to exist.
 - No AI components yet.
 
@@ -40,7 +52,7 @@ Feature numbers are tentative. Each feature is specified with [Spec Kit](https:/
 | # | Feature | Status |
 |---|---|---|
 | 001 | Create and fetch disputes | Done |
-| 002 | State transitions, safe under concurrent requests | Next |
+| 002 | State transitions, safe under concurrent requests | Done |
 | 003 | LLM client abstraction (Anthropic and Azure OpenAI adapters, fake for tests) | Planned |
 | 004 | Intake: free text to a validated dispute (structured output) | Planned |
 | 005 | Evaluation dataset and script (accuracy, latency, cost) | Planned |
@@ -70,6 +82,13 @@ uv run uvicorn disputes.main:app --reload
 # http://127.0.0.1:8000/docs
 uv run pytest
 ```
+
+### Concurrency tests
+
+Transitions are tested for races at two levels, and the two prove different things:
+
+- `test_transition_is_atomic_under_a_slow_read` (repository): 8 threads try the same move on one dispute while reads are made slow on purpose. Exactly one succeeds. Without the lock all 8 succeed, so this test is what proves the lock is needed.
+- `tests/test_transition_concurrency.py` (HTTP): competing requests are released together by a barrier, 50 rounds per case, and every round must end with a valid state and an unbroken history. The barrier starts the requests together but cannot force the handlers to interleave, so these tests check that no round ends in an invalid result; they pass even without the lock.
 
 Local database (the service does not use it yet; it is ready for the persistence feature):
 

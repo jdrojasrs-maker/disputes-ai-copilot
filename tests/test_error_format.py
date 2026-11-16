@@ -2,7 +2,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
-from disputes.errors import DisputeNotFoundError, register_error_handlers
+from disputes.errors import (
+    DisputeNotFoundError,
+    InvalidTransitionError,
+    register_error_handlers,
+)
+from disputes.models import DisputeState
 
 
 class Item(BaseModel):
@@ -25,6 +30,20 @@ def build_client() -> TestClient:
     @app.get("/missing")
     def missing() -> None:
         raise DisputeNotFoundError()
+
+    @app.post("/not-allowed")
+    def not_allowed() -> None:
+        raise InvalidTransitionError(
+            from_state=DisputeState.RESOLVED, to_state=DisputeState.REJECTED
+        )
+
+    @app.post("/lost-race")
+    def lost_race() -> None:
+        raise InvalidTransitionError(
+            from_state=DisputeState.UNDER_REVIEW,
+            to_state=DisputeState.WITHDRAWN,
+            state_changed=True,
+        )
 
     return TestClient(app)
 
@@ -120,3 +139,34 @@ def test_method_not_allowed_keeps_the_allow_header():
     response = client.put("/items/1")
 
     assert "GET" in response.headers["Allow"]
+
+
+def test_invalid_transition_uses_the_standard_envelope():
+    response = client.post("/not-allowed")
+
+    assert response.status_code == 409
+    body = response.json()
+    assert set(body) == {"error"}
+    assert body["error"]["code"] == "invalid_transition"
+    assert isinstance(body["error"]["message"], str)
+    assert body["error"]["details"] == []
+
+
+def test_invalid_transition_message_names_both_states():
+    message = client.post("/not-allowed").json()["error"]["message"]
+
+    assert "resolved" in message
+    assert "rejected" in message
+
+
+def test_lost_race_uses_the_same_code_but_says_the_state_changed():
+    response = client.post("/lost-race")
+
+    assert response.status_code == 409
+    error = response.json()["error"]
+    assert error["code"] == "invalid_transition"
+    assert error["details"] == []
+    assert "changed" in error["message"]
+    assert "under_review" in error["message"]
+    # The move may be allowed from the new state, so it must not claim it is refused.
+    assert "Cannot change state" not in error["message"]

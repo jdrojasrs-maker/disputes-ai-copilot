@@ -4,9 +4,30 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from disputes.models import DisputeState
+
 
 class DisputeNotFoundError(Exception):
     """Raised when a dispute id has no matching dispute."""
+
+
+class InvalidTransitionError(Exception):
+    """Raised when a dispute cannot move to the requested state.
+
+    `from_state` is the state the dispute is in. With `state_changed` the dispute moved
+    after the caller read it, so the move may be allowed from the new state.
+    """
+
+    def __init__(
+        self,
+        from_state: DisputeState,
+        to_state: DisputeState,
+        state_changed: bool = False,
+    ) -> None:
+        super().__init__(from_state, to_state)
+        self.from_state = from_state
+        self.to_state = to_state
+        self.state_changed = state_changed
 
 
 class ErrorDetail(BaseModel):
@@ -59,6 +80,20 @@ async def not_found_handler(request: Request, exc: DisputeNotFoundError):
     return JSONResponse(status_code=404, content=body.model_dump())
 
 
+async def invalid_transition_handler(request: Request, exc: InvalidTransitionError):
+    if exc.state_changed:
+        message = (
+            f"The dispute changed to {exc.from_state.value} while this request was being "
+            "handled; read it again and retry if the move is still wanted"
+        )
+    else:
+        message = f"Cannot change state from {exc.from_state.value} to {exc.to_state.value}"
+    body = ErrorResponse(
+        error=ErrorBody(code="invalid_transition", message=message, details=[])
+    )
+    return JSONResponse(status_code=409, content=body.model_dump())
+
+
 HTTP_ERROR_CODES = {404: "not_found", 405: "method_not_allowed"}
 
 
@@ -79,4 +114,5 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(DisputeNotFoundError, not_found_handler)
+    app.add_exception_handler(InvalidTransitionError, invalid_transition_handler)
     app.add_exception_handler(StarletteHTTPException, http_error_handler)

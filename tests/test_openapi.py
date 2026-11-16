@@ -26,3 +26,41 @@ def test_dispute_response_always_includes_state():
     required = schema["components"]["schemas"]["Dispute"]["required"]
 
     assert {"id", "state", "created_at"} <= set(required)
+
+
+TRANSITIONS = schema["paths"]["/disputes/{dispute_id}/transitions"]["post"]["responses"]
+
+
+def test_transitions_documents_the_updated_dispute_on_success():
+    ref = TRANSITIONS["200"]["content"]["application/json"]["schema"]["$ref"]
+
+    assert ref.endswith("/Dispute")
+
+
+def test_transitions_documents_not_found_conflict_and_validation_errors():
+    for status in ("404", "409", "422"):
+        assert error_schema_ref(TRANSITIONS[status]).endswith("/ErrorResponse")
+
+
+def test_transition_request_requires_only_to_state():
+    request = schema["components"]["schemas"]["TransitionRequest"]
+
+    assert request["required"] == ["to_state"]
+
+
+def test_dispute_schema_requires_updated_at_and_history():
+    required = schema["components"]["schemas"]["Dispute"]["required"]
+
+    assert {"updated_at", "history"} <= set(required)
+
+
+def test_state_change_schema_lists_its_fields():
+    state_change = schema["components"]["schemas"]["StateChange"]
+
+    assert set(state_change["properties"]) == {"from_state", "to_state", "note", "changed_at"}
+
+
+def test_dispute_state_schema_lists_the_five_states():
+    states = schema["components"]["schemas"]["DisputeState"]["enum"]
+
+    assert set(states) == {"open", "under_review", "resolved", "rejected", "withdrawn"}
