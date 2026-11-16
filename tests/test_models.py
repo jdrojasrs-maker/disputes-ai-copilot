@@ -5,7 +5,14 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from disputes.models import Dispute, DisputeCreate, DisputeState, Reason
+from disputes.models import (
+    Dispute,
+    DisputeCreate,
+    DisputeState,
+    Reason,
+    StateChange,
+    TransitionRequest,
+)
 
 VALID_DATA = {
     "transaction_id": "txn_0001",
@@ -33,14 +40,16 @@ def test_reason_values_match_the_contract():
         "unrecognized_charge",
         "product_not_received",
         "incorrect_amount",
-        "devolution",
+        "refund_not_received",
     }
 
 
 def test_dispute_starts_open():
     create = DisputeCreate(**VALID_DATA)
 
-    dispute = Dispute(**create.model_dump(), id=uuid4(), created_at=datetime.now(UTC))
+    now = datetime.now(UTC)
+
+    dispute = Dispute(**create.model_dump(), id=uuid4(), created_at=now, updated_at=now)
 
     assert dispute.state is DisputeState.OPEN
     assert DisputeState.OPEN.value == "open"
@@ -110,3 +119,111 @@ def test_description_of_1001_characters_is_rejected():
 def test_unknown_field_is_rejected():
     with pytest.raises(ValidationError):
         DisputeCreate(**VALID_DATA, state="closed")
+
+
+# --- State transitions (feature 002) ----------------------------------------
+
+
+def test_dispute_state_values_are_the_five_states():
+    assert {state.value for state in DisputeState} == {
+        "open",
+        "under_review",
+        "resolved",
+        "rejected",
+        "withdrawn",
+    }
+
+
+@pytest.mark.parametrize("state", [state.value for state in DisputeState])
+def test_transition_request_accepts_each_state(state: str):
+    request = TransitionRequest(to_state=state)
+
+    assert request.to_state is DisputeState(state)
+
+
+@pytest.mark.parametrize("value", ["closed", "Resolved", ""])
+def test_transition_request_rejects_unknown_states(value: str):
+    with pytest.raises(ValidationError):
+        TransitionRequest(to_state=value)
+
+
+def test_transition_request_requires_to_state():
+    with pytest.raises(ValidationError):
+        TransitionRequest()
+
+
+@pytest.mark.parametrize("field", ["from_state", "updated_at"])
+def test_transition_request_rejects_unknown_fields(field: str):
+    with pytest.raises(ValidationError):
+        TransitionRequest(to_state="under_review", **{field: "x"})
+
+
+def test_transition_request_note_defaults_to_none():
+    assert TransitionRequest(to_state="under_review").note is None
+
+
+def test_transition_request_note_length_limits():
+    assert len(TransitionRequest(to_state="under_review", note="x" * 1000).note) == 1000
+    with pytest.raises(ValidationError):
+        TransitionRequest(to_state="under_review", note="x" * 1001)
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_transition_request_blank_note_becomes_none(blank: str):
+    assert TransitionRequest(to_state="under_review", note=blank).note is None
+
+
+def test_transition_request_note_is_stored_unchanged():
+    request = TransitionRequest(to_state="under_review", note="  keep as sent  ")
+
+    assert request.note == "  keep as sent  "
+
+
+def test_state_change_holds_its_fields():
+    at = datetime.now(UTC)
+
+    change = StateChange(
+        from_state="open", to_state="under_review", note=None, changed_at=at
+    )
+
+    assert change.from_state is DisputeState.OPEN
+    assert change.to_state is DisputeState.UNDER_REVIEW
+    assert change.note is None
+    assert change.changed_at == at
+    assert change.changed_at.tzinfo is not None
+
+
+def test_state_change_keeps_a_note():
+    change = StateChange(
+        from_state="open",
+        to_state="withdrawn",
+        note="customer called",
+        changed_at=datetime.now(UTC),
+    )
+
+    assert change.note == "customer called"
+
+
+def test_new_dispute_has_an_empty_history_of_its_own():
+    create = DisputeCreate(**VALID_DATA)
+    now = datetime.now(UTC)
+
+    first = Dispute(**create.model_dump(), id=uuid4(), created_at=now, updated_at=now)
+    second = Dispute(**create.model_dump(), id=uuid4(), created_at=now, updated_at=now)
+    first.history.append(
+        StateChange(from_state="open", to_state="withdrawn", note=None, changed_at=now)
+    )
+
+    assert second.history == []
+
+
+def test_dispute_requires_updated_at():
+    create = DisputeCreate(**VALID_DATA)
+
+    with pytest.raises(ValidationError):
+        Dispute(**create.model_dump(), id=uuid4(), created_at=datetime.now(UTC))
+
+
+def test_the_old_devolution_reason_is_rejected():
+    with pytest.raises(ValidationError):
+        DisputeCreate(**{**VALID_DATA, "reason": "devolution"})

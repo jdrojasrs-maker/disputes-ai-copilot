@@ -69,7 +69,7 @@ def test_same_payload_twice_creates_two_disputes(client: TestClient):
         "unrecognized_charge",
         "product_not_received",
         "incorrect_amount",
-        "devolution",
+        "refund_not_received",
     ],
 )
 def test_every_reason_is_accepted(client: TestClient, reason: str):
@@ -125,4 +125,29 @@ def test_malformed_json_is_rejected_and_nothing_is_stored(
     error = response.json()["error"]
     assert error["code"] == "validation_error"
     assert [detail["field"] for detail in error["details"]] == ["body"]
+    assert repository.disputes == {}
+
+
+def test_new_dispute_has_updated_at_equal_to_created_at_and_no_history(
+    client: TestClient, repository: InMemoryDisputeRepository
+):
+    response = client.post("/disputes", json=VALID_PAYLOAD)
+
+    body = response.json()
+    assert body["updated_at"] == body["created_at"]
+    assert body["history"] == []
+    stored = repository.get(UUID(body["id"]))
+    assert stored is not None
+    assert stored.updated_at == stored.created_at
+    assert stored.history == []
+
+
+def test_the_old_devolution_reason_is_rejected(
+    client: TestClient, repository: InMemoryDisputeRepository
+):
+    response = client.post("/disputes", json={**VALID_PAYLOAD, "reason": "devolution"})
+
+    assert response.status_code == 422
+    fields = [detail["field"] for detail in response.json()["error"]["details"]]
+    assert "reason" in fields
     assert repository.disputes == {}

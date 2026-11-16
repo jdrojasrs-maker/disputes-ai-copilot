@@ -41,6 +41,27 @@ def test_malformed_id_returns_validation_error(client: TestClient):
     assert [detail["field"] for detail in error["details"]] == ["dispute_id"]
 
 
+def test_a_new_dispute_has_updated_at_equal_to_created_at_and_no_history(client: TestClient):
+    created = client.post("/disputes", json=VALID_PAYLOAD).json()
+
+    fetched = client.get(f"/disputes/{created['id']}").json()
+
+    assert fetched["updated_at"] == fetched["created_at"]
+    assert fetched["history"] == []
+
+
+def test_a_fetched_dispute_shows_the_change_after_a_transition(client: TestClient):
+    created = client.post("/disputes", json=VALID_PAYLOAD).json()
+    client.post(f"/disputes/{created['id']}/transitions", json={"to_state": "under_review"})
+
+    fetched = client.get(f"/disputes/{created['id']}").json()
+
+    assert fetched["state"] == "under_review"
+    assert fetched["updated_at"] >= fetched["created_at"]
+    assert len(fetched["history"]) == 1
+    assert fetched["history"][0]["changed_at"] == fetched["updated_at"]
+
+
 @pytest.mark.parametrize("method", ["put", "patch", "delete"])
 def test_disputes_cannot_be_changed_or_deleted(client: TestClient, method: str):
     created = client.post("/disputes", json=VALID_PAYLOAD).json()
