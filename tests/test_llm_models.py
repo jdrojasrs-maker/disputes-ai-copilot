@@ -155,3 +155,31 @@ def test_the_models_cannot_be_changed_after_they_are_built(
 ) -> None:
     with pytest.raises(ValidationError):
         setattr(instance, field, value)
+
+
+# --- the package re-exports its public pieces ---
+
+
+def test_the_package_exports_the_interface_models_errors_and_settings() -> None:
+    from disputes.llm import (
+        LLMClient,
+        LLMConfigurationError,
+        LLMError,
+        LLMRequest,
+        LLMResponse,
+        LLMSettings,
+        load_settings,
+    )
+
+    assert LLMClient and LLMRequest and LLMResponse and LLMError
+    assert LLMConfigurationError and LLMSettings and load_settings
+
+
+def test_importing_the_package_does_not_load_the_provider_sdk() -> None:
+    import subprocess
+    import sys
+
+    code = "import sys, disputes.llm; sys.exit(1 if 'anthropic' in sys.modules else 0)"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+
+    assert result.returncode == 0, "importing disputes.llm loaded the anthropic SDK"
