@@ -157,8 +157,9 @@ Note: the bundled reference described the 1.x line; the installed version is 2.1
 ## 9. Async tests without a new dependency
 
 - **Decision**: Use the `anyio` pytest plugin, already installed as a dependency of Starlette
-  (confirmed: the `anyio` entry point is registered under `pytest11`), with `@pytest.mark.anyio` and an `anyio_backend` fixture fixed to
-  `"asyncio"` in `tests/conftest.py` (trio is not installed). Fallback if the plugin is not
+  (confirmed: the `anyio` entry point is registered under `pytest11`), with `@pytest.mark.anyio`. No `anyio_backend` fixture is needed: the plugin
+  parametrizes only the installed backends and trio is not installed (confirmed in T009; add a
+  fixed `"asyncio"` fixture if trio is ever installed). Fallback if the plugin is not
   active: `asyncio.run(...)` inside plain sync tests.
 - **Alternatives considered**: Adding `pytest-asyncio` (rejected for now: a new dev dependency
   with no need).

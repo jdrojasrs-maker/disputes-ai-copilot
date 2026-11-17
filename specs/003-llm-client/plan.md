@@ -39,7 +39,7 @@ network
 **Constraints**: Tests first; synthetic data only; no key in the repository, logs, error messages
 or `repr`; exactly one provider attempt per call; no network in unit tests
 
-**Scale/Scope**: 1 new package with 5 modules (plus the test double in `tests/`), 1 new runtime dependency, 6 test modules, 1 manual
+**Scale/Scope**: 1 new package with 5 modules (plus the test double in `tests/`), 1 new runtime dependency, 7 test modules (6 plus the network guard test), 1 manual
 script, 1 evidence document, `.env.example` and docs updates
 
 ## Constitution Check
@@ -93,7 +93,8 @@ src/disputes/llm/
 
 tests/
 ├── fake_llm.py                  # FakeLLMClient, FakeScriptExhaustedError (test double, not shipped)
-├── conftest.py                  # gains the `fake_llm` fixture and `anyio_backend`
+├── conftest.py                  # gains the `block_network` guard and the `fake_llm` fixture
+├── test_network_guard.py        # proves the guard stops real connections (sync and async)
 ├── test_llm_models.py
 ├── test_llm_client_protocol.py
 ├── test_llm_errors.py
