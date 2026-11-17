@@ -381,9 +381,10 @@ the key never appears. Separately, one manual real call.
   `SecretStr`, fake in `tests/`, configuration error not an `LLMError`). Keep the file's language
   convention
   **Result: `CLAUDE.md` updated: current state (feature 003 done, pending PR; Azure adapter pending; next step), the roadmap row (Azure split into its own row) and six confirmed decisions moved to "Decisiones ya tomadas". It says "pendiente de PR" because T048 is not done; change it to merged after the PR.**
-- [ ] T048 Open the PR from `feat/003-llm-client` into `develop`; wait for CI green (tests,
+- [X] T048 Open the PR from `feat/003-llm-client` into `develop`; wait for CI green (tests,
   lint, and the existing image job, which must still start the container with no key set); fix
   anything red; merge only when green
+  **Result: PR #6 opened from `feat/003-llm-client` into `develop` with the success-criteria traceability table; `CLAUDE.md` updated with the PR number; CI result and merge recorded in the PR.**
 
 ---
 

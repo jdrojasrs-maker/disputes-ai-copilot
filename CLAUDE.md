@@ -13,8 +13,8 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 
 ## Estado actual (actualizar al cerrar cada feature)
 - **Hecho:** feature 001 (crear y consultar disputas), fusionada a `develop` (PR #1). Feature 002 (transiciones de estado), fusionada (PR #3), CI verde. Dockerfile e imagen en CI, fusionados (PR #4): el CI construye la imagen y prueba `/health`.
-- **Hecho (pendiente de PR):** feature 003 (`LLMClient`: interfaz, doble de prueba y adaptador Anthropic), en la rama `feat/003-llm-client`; una llamada real manual documentada en `docs/evidence/llm-client-anthropic.md`. El adaptador de Azure OpenAI queda pendiente (sin spec).
-- **Siguiente:** abrir el PR de la feature 003 hacia `develop` con el CI en verde; después, feature 004 (`POST /disputes/intake`).
+- **Hecho:** feature 003 (`LLMClient`: interfaz, doble de prueba y adaptador Anthropic), fusionada (PR #6); una llamada real manual documentada en `docs/evidence/llm-client-anthropic.md`. El adaptador de Azure OpenAI queda pendiente (sin spec).
+- **Siguiente:** feature 004 (`POST /disputes/intake`); rama de spec aún sin crear.
 - **Pendiente sin resolver:** dos cuelgues intermitentes en `test_a_closed_dispute_is_never_changed_by_simultaneous_requests` (causa no encontrada; mitigado con un timeout de 20 s en el helper `race`). Está declarado en el PR #3.
 - **Límites conocidos:** repositorio en memoria (se pierde al reiniciar; con varios workers cada proceso tiene su propia memoria); la atomicidad de las transiciones (un candado dentro del repositorio) solo vale dentro de un proceso; sin autenticación; el `LLMClient` existe pero ningún endpoint lo usa (la API no tiene comportamiento de IA todavía); sin reintentos ante fallos del modelo (solo la marca `retryable`); el timeout por defecto (60 s) no está validado por una medición.
 
@@ -24,7 +24,7 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 | 001 | Crear y consultar disputas | Hecha |
 | 002 | Transiciones de estado + concurrencia | Hecha |
 | — | Dockerfile + imagen en CI (infraestructura) | Hecha (PR #4) |
-| 003 | `LLMClient`: interfaz, doble de prueba, adaptador Anthropic | Hecha (pendiente de PR) |
+| 003 | `LLMClient`: interfaz, doble de prueba, adaptador Anthropic | Hecha (PR #6) |
 | — | Adaptador Azure OpenAI para el mismo `LLMClient` | Pendiente |
 | 004 | `POST /disputes/intake`: texto libre a disputa validada (salida estructurada) | Pendiente |
 | 005 | Evals: dataset de 30 casos y script (aciertos, latencia, costo) | Pendiente |
