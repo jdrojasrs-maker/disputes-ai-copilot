@@ -246,7 +246,7 @@ the key never appears. Separately, one manual real call.
 
 ### Settings
 
-- [ ] T027 [US4] Write `tests/test_llm_settings.py` (sync; use `monkeypatch` and pass
+- [X] T027 [US4] Write `tests/test_llm_settings.py` (sync; use `monkeypatch` and pass
   `env_file=None` so a developer's `.env` is ignored): values load from the environment;
   `repr` and `str` of the settings do not contain the key sentinel `sk-test-SENTINEL` (FR-016);
   `llm_timeout_seconds` defaults to 60; a missing key raises `LLMConfigurationError` whose message
@@ -257,18 +257,22 @@ the key never appears. Separately, one manual real call.
   because the subprocess does not inherit pytest's `pythonpath`) with `ANTHROPIC_API_KEY`
   removed from its environment exits 0 (FR-017; this one
   fails until T035, so mark it as expected red and run it again then)
-- [ ] T028 [US4] Run it and confirm red (module missing). Record the reason
-- [ ] T029 [US4] (owner) Implement `src/disputes/llm/settings.py`: `LLMSettings(BaseSettings)`
+  **Result: `tests/test_llm_settings.py` written (12 test cases incl. the subprocess import test).**
+- [X] T028 [US4] Run it and confirm red (module missing). Record the reason
+  **Result: fails at collection with `ModuleNotFoundError: No module named 'disputes.llm.settings'`, the expected reason.**
+- [X] T029 [US4] (owner) Implement `src/disputes/llm/settings.py`: `LLMSettings(BaseSettings)`
   with the three fields and env names from data-model.md, ignoring unknown variables, and a
   `load_settings(env_file=...)` function that builds it on demand (never at import) and converts a
   validation error into `LLMConfigurationError` naming the variable, built from the field name and
   never from the raw input
-- [ ] T030 [US4] Run `uv run pytest tests/test_llm_settings.py` (all but the subprocess import
+  **Result: `src/disputes/llm/settings.py` written by the assistant at the owner's request (the owner must still be able to explain every line before committing). `load_settings` raises the configuration error after the `except` block, so no validation error (which carries the input) is attached.**
+- [X] T030 [US4] Run `uv run pytest tests/test_llm_settings.py` (all but the subprocess import
   test should pass) and `uv run ruff check .`
+  **Result: 11 passed; the only failure was the subprocess import test, as expected until the adapter module existed (it passed in T036).**
 
 ### Adapter
 
-- [ ] T031 [US4] Write the success-path tests in `tests/test_llm_anthropic_adapter.py` (async,
+- [X] T031 [US4] Write the success-path tests in `tests/test_llm_anthropic_adapter.py` (async,
   real SDK, `httpx2.MockTransport` through `http_client`, sentinel key, a helper that builds the
   adapter and records requests): a normal answer maps text, `usage` input/output tokens, `model`
   taken from the answer (not from the configured name) and `stop_reason` (FR-006, FR-012); the
@@ -281,15 +285,18 @@ the key never appears. Separately, one manual real call.
   (`asyncio.gather`) each get their own answer (FR-008); SC-008: one caller function
   `async def ask(client: LLMClient) -> str` returns the same text when given the fake and when
   given the adapter, with no change to the function
-- [ ] T032 [US4] [US3] In the same file add the failure-translation tests: for each row of the
+  **Result: success-path tests written in `tests/test_llm_anthropic_adapter.py`, including the SC-008 `ask(client)` test. Observed with `anthropic 2.10.0`: the key travels as `Authorization: Bearer <key>`, so the test asserts that header (not `x-api-key`).**
+- [X] T032 [US4] [US3] In the same file add the failure-translation tests: for each row of the
   table in research.md section 4 parametrize the HTTP status (401, 403 to authentication; 400, 404,
   422 to bad request; 429 to rate limit; 500, 502, 503, 529 to provider unavailable; 418 to the
   base `LLMError`), HTTP 408 and a `httpx2.ReadTimeout` raised by the transport to
   `LLMTimeoutError`, 409 to the base `LLMError` (not retryable), and a `httpx2.ConnectError` to
   `LLMProviderUnavailableError`; for each assert the exact class, the
   `retryable` value, `status_code`, `request_id` from the `request-id` header when present, and
-  that `__cause__` is `None` (raised `from None`, research section 4)
-- [ ] T033 [US4] In the same file add the retries-off and key-safety tests: for the 500, 429 and
+  that `__cause__` and `__context__` are `None` (raised outside the `except` block, research
+  section 4)
+  **Result: failure-translation tests written: 13 HTTP statuses, 2 transport errors, the retryable flags and the no-cause/no-context check.**
+- [X] T033 [US4] In the same file add the retries-off and key-safety tests: for the 500, 429 and
   timeout cases the transport handler was called exactly once (SC-005, FR-013); the SDK client's
   retries attribute (the one found in T005, read through the adapter's `_client` attribute) is `0`
   and its timeout equals the configured seconds
@@ -297,36 +304,45 @@ the key never appears. Separately, one manual real call.
   formatted traceback (`traceback.format_exception`), `repr(adapter)`, `str(adapter)` or captured
   log records at DEBUG level (FR-016); `from_env()` with all variables set builds the adapter and
   with `ANTHROPIC_API_KEY` missing raises `LLMConfigurationError` naming it (FR-017)
-- [ ] T034 [US4] Run the file and confirm red (module missing), then record the reason
-- [ ] T035 [US4] (owner) Implement `src/disputes/llm/anthropic_adapter.py`: `AnthropicLLMClient`
+  **Result: retries-off, single-attempt and key-safety tests written, plus `from_env` tests (run in a temp directory so a local `.env` is never read).**
+- [X] T034 [US4] Run the file and confirm red (module missing), then record the reason
+  **Result: fails at collection with `ModuleNotFoundError: No module named 'disputes.llm.anthropic_adapter'`, the expected reason.**
+- [X] T035 [US4] (owner) Implement `src/disputes/llm/anthropic_adapter.py`: `AnthropicLLMClient`
   built from `api_key: SecretStr`, `model`, `timeout_seconds` and an optional `http_client`
   (tests only); it creates `AsyncAnthropic(api_key=<secret value, read once>, max_retries=0,
   timeout=...)` and keeps it in the attribute `self._client` (tests read it); `from_env()` uses `load_settings()`; `complete` calls the SDK once, reads only
   `text` blocks, maps usage, model and stop reason, and translates failures per research.md
   section 4 (timeout class tested before connection class) with our own message, status code and
-  request id, raised `from None`; give the class a `__repr__` that shows no key
-- [ ] T036 [US4] Run `uv run pytest tests/test_llm_anthropic_adapter.py
+  request id, raised after the `except` block so no cause or context is attached; give the class
+  a `__repr__` that shows no key
+  **Result: `src/disputes/llm/anthropic_adapter.py` written by the assistant at the owner's request (the owner must still be able to explain every line before committing). One deviation from the task text: the service error is raised after the `except` block (not `from None` inside it), so neither `__cause__` nor `__context__` holds the provider error; research.md section 4 updated.**
+- [X] T036 [US4] Run `uv run pytest tests/test_llm_anthropic_adapter.py
   tests/test_llm_settings.py` (now including the subprocess import test) and
   `uv run ruff check .`; confirm green and clean. If a test fails because a detail of the SDK
   differs from research.md, fix research.md with the observed fact, not just the code
+  **Result: adapter and settings tests all green; full suite 380 passed; `ruff check .` clean and the new files formatted. The one red found on the way was the test's own wrong assumption about the key header (see T031).**
 
 ### Manual real call
 
-- [ ] T037 [US4] (AI may draft) Write `scripts/manual_anthropic_call.py` (outside `tests/`, so
+- [X] T037 [US4] (AI may draft) Write `scripts/manual_anthropic_call.py` (outside `tests/`, so
   pytest never collects it): refuses to run if the `CI` environment variable is set; builds the
   adapter with `from_env()`; sends one short synthetic prompt with a small `max_tokens`; prints
   text, input and output tokens, model and stop reason; on `LLMError` prints the class name,
   `retryable`, `status_code` and `request_id`, never the key. Confirm `uv run pytest` does not
   collect it
-- [ ] T038 [US4] Run the script once with your own key (quickstart section 4). Do not paste the
+  **Result: `scripts/manual_anthropic_call.py` written. Dry-run without a key prints `ANTHROPIC_API_KEY is not set; LLM_MODEL is not set` (exit 2); with `CI=1` it refuses to run (exit 2); `pytest --collect-only` does not collect it. No real call was made.**
+- [X] T038 [US4] Run the script once with your own key (quickstart section 4). Do not paste the
   key anywhere. Note the date, and the real output
-- [ ] T039 [US4] Create `docs/evidence/llm-client-anthropic.md` with the date, the exact command,
+  **Result: run by the owner on 2026-11-17. First attempt: `LLM_MODEL` still held the placeholder, so the provider answered 404 and the adapter raised `LLMBadRequestError` (not retryable, with status and request id, no key). Second attempt with `claude-sonnet-5-5`: answer returned, 43 input tokens, 63 output tokens, model `claude-sonnet-5-5`, stop reason `completed`.**
+- [X] T039 [US4] Create `docs/evidence/llm-client-anthropic.md` with the date, the exact command,
   the prompt and the real output of T038 (text, tokens, model, stop reason). State plainly that it
   is one manual call, not run in CI, and that the timeout default of 60 s is not validated by it
   (research.md section 6); if the call timed out or failed, record that as it happened
-- [ ] T040 [US4] Check the evidence file and the whole repository for secrets: search for
+  **Result: `docs/evidence/llm-client-anthropic.md` created from the owner's pasted output, with the successful call, the earlier 404 attempt, and an explicit list of what the call does not show (latency, thinking tokens, cost, other failure kinds).**
+- [X] T040 [US4] Check the evidence file and the whole repository for secrets: search for
   `sk-ant`, `ANTHROPIC_API_KEY=` followed by a value, and the test sentinel outside `tests/`; fix
   anything found before committing
+  **Result: scan clean. No `sk-ant` strings; the only key-like strings are the test sentinel inside `tests/`; `.env` is ignored and untracked; the placeholder in `.env.example` is the only assignment outside tests. A comparison against the real key held in the local `.env` (kept in memory only, never printed) found it in no other file, evidence file included.**
 
 **Checkpoint**: all four stories work; one real call is documented.
 

@@ -75,12 +75,19 @@ Note: the bundled reference described the 1.x line; the installed version is 2.1
   which is not retryable. A model-name typo (404)
   is classed as bad request because retrying never fixes it.
 - **Message and key safety**: Our message is our own text plus the HTTP status and the provider's
-  request id, never `str(original_error)`. The exception is raised with `from None` so the
-  provider exception, which holds the outgoing request and its headers (including the key), is
-  not attached as `__cause__`. Cost: less debugging detail in tracebacks; the status code and
-  request id are kept as attributes to make up for it.
-- **Alternatives considered**: `raise ... from e` (rejected: retains an object that carries the
-  key in its request headers, which error trackers may serialise).
+  request id, never `str(original_error)`. The provider exception holds the outgoing
+  request and its headers (including the key), so it must not stay attached to ours. The adapter
+  catches it, builds the service error inside the `except` block, and raises that error
+  **after** the block: raised inside, Python would attach the provider error as `__context__`
+  even with `from None`. Tests assert both `__cause__` and `__context__` are `None`. Cost: less
+  debugging detail in tracebacks; the status code and request id are kept as attributes to make
+  up for it.
+- **Observed**: with `anthropic 2.10.0` the key travels as `Authorization: Bearer <key>` (not
+  `x-api-key`); the adapter test asserts the header the SDK really sends.
+- **Alternatives considered**: `raise ... from e` and `raise ... from None` inside the `except`
+  block (rejected: the first keeps the provider error as `__cause__`; the second still leaves it
+  as `__context__`, and an object that carries the key in its request headers may be serialised
+  by error trackers).
 
 ## 5. Retries are off, and that is proven
 

@@ -60,7 +60,8 @@ in research.md section 10 (typed errors, no hand-written HTTP, one importing fil
 
 **Post-design re-check**: Pass. The design adds one dependency, no persistence, no endpoint and no
 Bank access. One risk is handled by design: leaking the key through a chained provider
-exception (raised `from None`, research section 4). The test double lives in `tests/`, so it
+exception (raised outside the `except` block so no cause or context is attached, research
+section 4). The test double lives in `tests/`, so it
 never ships in the image.
 
 ## Project Structure
