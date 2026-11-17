@@ -12,8 +12,8 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 - Idioma: español para conversar; código, specs, README y documentación del repo en inglés (este archivo es la excepción: es contexto de trabajo).
 
 ## Estado actual (actualizar al cerrar cada feature)
-- **Hecho:** feature 001 (crear y consultar disputas), fusionada a `develop` (PR #1). Feature 002 (transiciones de estado), fusionada (PR #3), CI verde. Dockerfile e imagen en CI (rama `chore/dockerfile-and-ci-image`): el CI construye la imagen y prueba `/health`; falta el PR hacia `develop`.
-- **Siguiente:** feature 003 (`LLMClient`).
+- **Hecho:** feature 001 (crear y consultar disputas), fusionada a `develop` (PR #1). Feature 002 (transiciones de estado), fusionada (PR #3), CI verde. Dockerfile e imagen en CI, fusionados (PR #4): el CI construye la imagen y prueba `/health`.
+- **Siguiente:** feature 003 (`LLMClient`); rama `docs/spec-kit-003-llm-client`, aún sin spec.
 - **Pendiente sin resolver:** dos cuelgues intermitentes en `test_a_closed_dispute_is_never_changed_by_simultaneous_requests` (causa no encontrada; mitigado con un timeout de 20 s en el helper `race`). Está declarado en el PR #3.
 - **Límites conocidos:** repositorio en memoria (se pierde al reiniciar; con varios workers cada proceso tiene su propia memoria); la atomicidad de las transiciones (un candado dentro del repositorio) solo vale dentro de un proceso; sin autenticación; sin componentes de IA.
 
@@ -22,7 +22,7 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 |---|---|---|
 | 001 | Crear y consultar disputas | Hecha |
 | 002 | Transiciones de estado + concurrencia | Hecha |
-| — | Dockerfile + imagen en CI (infraestructura) | Hecha (pendiente de PR) |
+| — | Dockerfile + imagen en CI (infraestructura) | Hecha (PR #4) |
 | 003 | `LLMClient`: interfaz, doble de prueba, adaptador Anthropic, adaptador Azure OpenAI | Pendiente |
 | 004 | `POST /disputes/intake`: texto libre a disputa validada (salida estructurada) | Pendiente |
 | 005 | Evals: dataset de 30 casos y script (aciertos, latencia, costo) | Pendiente |
