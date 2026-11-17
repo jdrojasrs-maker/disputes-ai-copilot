@@ -90,22 +90,38 @@ those classes is tested in the adapter phase (US4) with the `[US3]` label.
 
 **Purpose**: Async tests must run before any async test is written for a story
 
-- [ ] T008 (AI may draft) Write a throwaway test `tests/test_llm_async_smoke.py` with one
+- [X] T008 (AI may draft) Write a throwaway test `tests/test_llm_async_smoke.py` with one
   `@pytest.mark.anyio` async test that awaits `asyncio.sleep(0)` and asserts true
-- [ ] T009 Run it with `uv run pytest tests/test_llm_async_smoke.py` and confirm it fails or
+  **Result: written, then deleted in T011.**
+- [X] T009 Run it with `uv run pytest tests/test_llm_async_smoke.py` and confirm it fails or
   errors for the expected reason (no `anyio_backend` fixture, so the trio variant is requested and
   trio is not installed). Record the message
-- [ ] T010 (AI may draft) Add a session-scoped `anyio_backend` fixture returning `"asyncio"` to
+  **Result: it did NOT fail; it passed (`test_async_tests_run[asyncio]`). Reason: the anyio
+  plugin's own `anyio_backend` fixture is parametrized with the backends that are installed
+  (`params=get_available_backends()`), and only asyncio is installed, so no fixture of ours is
+  needed. The planned red step did not happen; recorded here as the constitution asks.**
+- [X] T010 (AI may draft) Add a session-scoped `anyio_backend` fixture returning `"asyncio"` to
   `tests/conftest.py`
-- [ ] T010a (AI may draft) Add an `autouse` fixture to `tests/conftest.py` that replaces
-  `socket.socket` with a function raising `RuntimeError("network access in a unit test")`, so any
-  accidental real call fails loudly (FR-019, SC-003). The FastAPI `TestClient` uses an in-memory
-  transport, but confirm by running the existing suite with the fixture active; if a 001/002 test
-  breaks, limit the fixture to modules named `test_llm_*`
-- [ ] T011 Run the smoke test again and confirm green, then delete
+  **Result: skipped on purpose (not needed, see T009). If trio is ever installed, async tests
+  would run twice (asyncio and trio); add the fixture then.**
+- [X] T010a (AI may draft) Add an `autouse` fixture to `tests/conftest.py` that blocks real network
+  access so any accidental real call fails loudly (FR-019, SC-003); confirm the existing suite
+  still passes with it
+  **Result: the first version, replacing `socket.socket`, broke 128 tests (asyncio and the test
+  client create sockets, even to localhost on Windows). The second version, blocking only
+  `connect` to non-local hosts, passed the suite but was proven NOT to stop async HTTP on Windows
+  (the call timed out against the real network, because the Windows event loop does not use
+  `socket.connect`). Final version, `block_network` in `tests/conftest.py`: socket creation stays
+  allowed; remote `connect`/`connect_ex`, `getaddrinfo` and the asyncio loop's
+  `create_connection`/`sock_connect` raise `RuntimeError("network access in a unit test")`.
+  Proven by `tests/test_network_guard.py` (4 tests: sync IP, name lookup, async IP, async
+  hostname). Suite: 247 passed.**
+- [X] T011 Run the smoke test again and confirm green, then delete
   `tests/test_llm_async_smoke.py` (the real async tests below cover it). If the anyio plugin
   cannot be made to work, use the fallback in research.md section 9 (`asyncio.run` inside sync
   tests) and say so in the commit
+  **Result: green with the guard active; file deleted. The async guard tests in
+  `tests/test_network_guard.py` now exercise the anyio plugin. No fallback needed.**
 
 **Checkpoint**: async tests run; US1 can start.
 
@@ -118,7 +134,7 @@ those classes is tested in the adapter phase (US4) with the `[US3]` label.
 **Independent Test**: Build requests and responses, see invalid ones rejected, see responses
 frozen, and see a class with the right method count as an `LLMClient`.
 
-- [ ] T012 [P] [US1] Write `tests/test_llm_models.py` (sync) covering, from
+- [X] T012 [P] [US1] Write `tests/test_llm_models.py` (sync) covering, from
   [data-model.md](data-model.md): `Message` accepts roles `user` and `assistant` and rejects any
   other role (FR-003); `Message.content` "not empty after trimming whitespace": `""`, `"   "` and
   `"\n"` rejected, and valid text is stored untrimmed; `LLMRequest.messages` "at least one message"
@@ -129,19 +145,26 @@ frozen, and see a class with the right method count as an `LLMClient`.
   `Message`, `LLMRequest`, `TokenUsage` or `LLMResponse` raises (FR-006); `TokenUsage` tokens
   "greater than or equal to zero" (-1 rejected, 0 accepted); `LLMResponse.model` "not empty";
   `LLMResponse.text` may be `""`; `StopReason` has exactly `completed`, `max_tokens`, `other`
-- [ ] T013 [P] [US1] Write `tests/test_llm_client_protocol.py` (sync): a tiny class with an
+- [X] T013 [P] [US1] Write `tests/test_llm_client_protocol.py` (sync): a tiny class with an
   `async def complete(self, request)` is an instance of `LLMClient` (runtime-checkable
   Protocol); a class without `complete` is not
-- [ ] T014 [US1] Run both files and confirm red (import errors for the missing package modules).
+- [X] T014 [US1] Run both files and confirm red (import errors for the missing package modules).
   Record the reason
-- [ ] T015 [US1] (owner) Implement `src/disputes/llm/models.py`: `Role`, `Message`, `LLMRequest`,
+  **Result: both files fail at collection, for the expected reason: `ModuleNotFoundError: No
+  module named 'disputes.llm.models'` and `... 'disputes.llm.client'`. `ruff` reports one
+  import-order finding in `tests/test_llm_models.py` because the module it imports does not
+  exist yet; it should disappear after T015.**
+- [X] T015 [US1] (owner) Implement `src/disputes/llm/models.py`: `Role`, `Message`, `LLMRequest`,
   `StopReason`, `TokenUsage`, `LLMResponse`, all frozen with `extra="forbid"`, exactly as in
   data-model.md (no sampling fields; `messages` is a `tuple[Message, ...]`)
-- [ ] T016 [US1] (owner) Implement `src/disputes/llm/client.py`: the `@runtime_checkable`
+- [X] T016 [US1] (owner) Implement `src/disputes/llm/client.py`: the `@runtime_checkable`
   `LLMClient` Protocol with `async def complete(self, request: LLMRequest) -> LLMResponse`
-- [ ] T017 [US1] Run `uv run pytest tests/test_llm_models.py tests/test_llm_client_protocol.py`
+  **Result: written by the assistant at the owner's request (the owner must still be able to
+  explain every line before committing). T015 and T016 together: 36 tests green.**
+- [X] T017 [US1] Run `uv run pytest tests/test_llm_models.py tests/test_llm_client_protocol.py`
   and `uv run ruff check .`; confirm green and clean. Be ready to explain why the models are frozen
   and why `messages` is a tuple
+  **Result: 36 passed (models 34 + protocol 2); full suite 283 passed; `ruff check .` clean.**
 
 **Checkpoint**: US1 complete and independently testable.
 
