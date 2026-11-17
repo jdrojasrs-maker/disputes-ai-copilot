@@ -13,9 +13,10 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 
 ## Estado actual (actualizar al cerrar cada feature)
 - **Hecho:** feature 001 (crear y consultar disputas), fusionada a `develop` (PR #1). Feature 002 (transiciones de estado), fusionada (PR #3), CI verde. Dockerfile e imagen en CI, fusionados (PR #4): el CI construye la imagen y prueba `/health`.
-- **Siguiente:** feature 003 (`LLMClient`); rama `docs/spec-kit-003-llm-client`, aún sin spec.
+- **Hecho:** feature 003 (`LLMClient`: interfaz, doble de prueba y adaptador Anthropic), fusionada (PR #6); una llamada real manual documentada en `docs/evidence/llm-client-anthropic.md`. El adaptador de Azure OpenAI queda pendiente (sin spec).
+- **Siguiente:** feature 004 (`POST /disputes/intake`); rama de spec aún sin crear.
 - **Pendiente sin resolver:** dos cuelgues intermitentes en `test_a_closed_dispute_is_never_changed_by_simultaneous_requests` (causa no encontrada; mitigado con un timeout de 20 s en el helper `race`). Está declarado en el PR #3.
-- **Límites conocidos:** repositorio en memoria (se pierde al reiniciar; con varios workers cada proceso tiene su propia memoria); la atomicidad de las transiciones (un candado dentro del repositorio) solo vale dentro de un proceso; sin autenticación; sin componentes de IA.
+- **Límites conocidos:** repositorio en memoria (se pierde al reiniciar; con varios workers cada proceso tiene su propia memoria); la atomicidad de las transiciones (un candado dentro del repositorio) solo vale dentro de un proceso; sin autenticación; el `LLMClient` existe pero ningún endpoint lo usa (la API no tiene comportamiento de IA todavía); sin reintentos ante fallos del modelo (solo la marca `retryable`); el timeout por defecto (60 s) no está validado por una medición.
 
 ## Roadmap (numeración tentativa; Spec Kit asigna la real)
 | # | Feature | Estado |
@@ -23,7 +24,8 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 | 001 | Crear y consultar disputas | Hecha |
 | 002 | Transiciones de estado + concurrencia | Hecha |
 | — | Dockerfile + imagen en CI (infraestructura) | Hecha (PR #4) |
-| 003 | `LLMClient`: interfaz, doble de prueba, adaptador Anthropic, adaptador Azure OpenAI | Pendiente |
+| 003 | `LLMClient`: interfaz, doble de prueba, adaptador Anthropic | Hecha (PR #6) |
+| — | Adaptador Azure OpenAI para el mismo `LLMClient` | Pendiente |
 | 004 | `POST /disputes/intake`: texto libre a disputa validada (salida estructurada) | Pendiente |
 | 005 | Evals: dataset de 30 casos y script (aciertos, latencia, costo) | Pendiente |
 | 006 | Persistencia en PostgreSQL con Alembic | Pendiente |
@@ -41,6 +43,11 @@ Arquitectura y decisiones de diseño: `docs/ARCHITECTURE.md`. Principios: `.spec
 - Imagen Docker en dos etapas, usuario no root y **un solo** proceso uvicorn (el almacén en memoria y su candado son por proceso). El CI la construye y prueba `/health`; no se publica en ningún registro hasta la feature 008.
 - Búsqueda vectorial con `pgvector` dentro de PostgreSQL, no una base vectorial aparte.
 - El agente se construye una sola vez, en LangGraph. Las pruebas unitarias nunca llaman a un modelo real: usan un doble de `LLMClient`.
+- `LLMClient` es un `Protocol` async con `complete(LLMRequest) -> LLMResponse`. Los tipos son Pydantic inmutables, sin parámetros de muestreo (`temperature`, `top_p`, `top_k`: se rechazan). La respuesta lleva texto, uso de tokens, el modelo que respondió y un motivo de parada neutral (`completed`, `max_tokens`, `other`); una respuesta cortada por el límite de tokens se devuelve, no se lanza. No valida el orden de los turnos (lo rechaza el proveedor).
+- Fallos del modelo: `LLMError` y cinco subclases (autenticación, petición inválida, límite de tasa, timeout, proveedor no disponible), cada una con `retryable` como atributo de clase. `LLMConfigurationError` no hereda de `LLMError`. Los reintentos serán una feature deliberada que lea `retryable`.
+- El adaptador de Anthropic hace **un solo intento** por llamada (`max_retries=0` en el SDK). Traduce por clase de excepción del SDK; el mensaje es propio (nunca `str()` del error del proveedor) y se lanza fuera del bloque `except`, para que ni `__cause__` ni `__context__` guarden la petición con la clave.
+- Settings del LLM: `ANTHROPIC_API_KEY` (`SecretStr`), `LLM_MODEL` (obligatorio, sin valor por defecto) y `LLM_TIMEOUT_SECONDS` (por defecto 60; es la espera máxima por fase, no un tope total). Se leen al construir el adaptador, no al importar el módulo.
+- `FakeLLMClient` vive en `tests/`, no en el paquete. `tests/conftest.py` hace fallar cualquier prueba que intente una conexión de red a un host que no sea local.
 - Bank es solo lectura y con datos de ejemplo; la interacción pasa por una interfaz documentada.
 - Estados: `open`, `under_review`, `resolved`, `rejected`, `withdrawn`. Cinco transiciones permitidas: `open → under_review`, `open → withdrawn`, `under_review → resolved`, `under_review → rejected`, `under_review → withdrawn`. `under_review → withdrawn` sí; `open → rejected` no. Los estados finales nunca se reabren y pasar al estado actual se rechaza. Las reglas viven en una sola tabla (`transitions.py`).
 - `POST /disputes/{id}/transitions` con `{to_state, note}`; una transición inválida devuelve 409 con código `invalid_transition` y el formato de error de la API.

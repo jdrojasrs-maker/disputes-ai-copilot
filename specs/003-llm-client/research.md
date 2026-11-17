@@ -5,8 +5,10 @@ planning.
 
 **Source of SDK facts.** Facts about the Anthropic Python SDK and API come from the Claude API
 reference bundled with Claude Code (checked 2026-11-17), not from the live documentation site.
-Items marked *(confirm on install)* must be checked against the version `uv` actually installs
-before the related test is written.
+Items marked *(confirm on install)* were checked on 2026-11-17 against the installed
+`anthropic 2.10.0` (task T005) and now state the observed result; the one that cannot be checked
+without a real call (section 3, thinking tokens) stays marked until the manual call (T038).
+Note: the bundled reference described the 1.x line; the installed version is 2.10.0.
 
 ## 1. Shape of the interface
 
@@ -54,15 +56,18 @@ before the related test is written.
 
 - **Decision**: One service base error `LLMError` with a class attribute `retryable: bool`, and
   five subclasses. Translation, most specific first (`APITimeoutError` is a subclass of
-  `APIConnectionError`, so it must be tested before it *(confirm on install)*):
+  `APIConnectionError`, so it must be tested before it; confirmed on `anthropic 2.10.0`).
+  The SDK also has its own classes for some statuses: `RequestTimeoutError` (408),
+  `ConflictError` (409) and `OverloadedError` (529, a subclass of `InternalServerError`), all
+  subclasses of `APIStatusError`. Translate by class, most specific first:
 
   | Provider failure (SDK class) | Service exception | `retryable` |
   |---|---|---|
   | `AuthenticationError` (401), `PermissionDeniedError` (403) | `LLMAuthenticationError` | no |
   | `BadRequestError` (400), `NotFoundError` (404, for example a wrong model name), `UnprocessableEntityError` (422) | `LLMBadRequestError` | no |
   | `RateLimitError` (429) | `LLMRateLimitError` | yes |
-  | `APITimeoutError`, HTTP 408 | `LLMTimeoutError` | yes |
-  | `InternalServerError` (>= 500), HTTP 529 overloaded, `APIConnectionError` (not timeout) | `LLMProviderUnavailableError` | yes |
+  | `APITimeoutError`, `RequestTimeoutError` (408) | `LLMTimeoutError` | yes |
+  | `InternalServerError` (>= 500, includes `OverloadedError` 529), `APIConnectionError` (not timeout) | `LLMProviderUnavailableError` | yes |
   | any other `APIStatusError`, any other `anthropic.AnthropicError` | `LLMError` (base) | no |
 
 - **Rationale**: Follows the SDK's own definition of what it would retry (connection errors, 408,
@@ -70,12 +75,19 @@ before the related test is written.
   which is not retryable. A model-name typo (404)
   is classed as bad request because retrying never fixes it.
 - **Message and key safety**: Our message is our own text plus the HTTP status and the provider's
-  request id, never `str(original_error)`. The exception is raised with `from None` so the
-  provider exception, which holds the outgoing request and its headers (including the key), is
-  not attached as `__cause__`. Cost: less debugging detail in tracebacks; the status code and
-  request id are kept as attributes to make up for it.
-- **Alternatives considered**: `raise ... from e` (rejected: retains an object that carries the
-  key in its request headers, which error trackers may serialise).
+  request id, never `str(original_error)`. The provider exception holds the outgoing
+  request and its headers (including the key), so it must not stay attached to ours. The adapter
+  catches it, builds the service error inside the `except` block, and raises that error
+  **after** the block: raised inside, Python would attach the provider error as `__context__`
+  even with `from None`. Tests assert both `__cause__` and `__context__` are `None`. Cost: less
+  debugging detail in tracebacks; the status code and request id are kept as attributes to make
+  up for it.
+- **Observed**: with `anthropic 2.10.0` the key travels as `Authorization: Bearer <key>` (not
+  `x-api-key`); the adapter test asserts the header the SDK really sends.
+- **Alternatives considered**: `raise ... from e` and `raise ... from None` inside the `except`
+  block (rejected: the first keeps the provider error as `__cause__`; the second still leaves it
+  as `__context__`, and an object that carries the key in its request headers may be serialised
+  by error trackers).
 
 ## 5. Retries are off, and that is proven
 
@@ -84,8 +96,10 @@ before the related test is written.
   that answers 500 (and, in another case, 429) and counts requests; assert the SDK made exactly
   one request and the adapter raised the matching service exception. This tests the real SDK
   behaviour with no network (SC-005). The project already has `httpx2` in its dev group. A second,
-  cheaper test asserts the configured value on the client object *(confirm on install: attribute
-  name `max_retries`)*.
+  cheaper test asserts the configured value on the client object (confirmed: `client.max_retries`
+  returns the value given, `0`). Observed with the mock transport: with `max_retries=0` a 500
+  produced 1 request; with `max_retries=2` the same 500 produced 3, so the retry the setting
+  turns off is real.
 - **Alternatives considered**: Only asserting the constructor argument with a mock (rejected: it
   would pass even if the SDK ignored the argument).
 
@@ -94,7 +108,9 @@ before the related test is written.
 - **Decision**: Setting `LLM_TIMEOUT_SECONDS`, a positive float, default `60`. Passed to the SDK
   as `timeout=<seconds>`; an expiry raises `APITimeoutError`, which becomes `LLMTimeoutError`.
 - **What the number means**: The SDK passes a single number as the timeout of each phase of the
-  HTTP exchange, so a call can last longer than that number in total (*confirm on install*).
+  HTTP exchange, so a call can last longer than that number in total. Confirmed: a `timeout=7.0`
+  reached the HTTP layer as `connect=7.0, read=7.0, write=7.0, pool=7.0`; `client.timeout`
+  returns the float given (the SDK default is `Timeout(connect=5.0, read=600, ...)`).
   Tests prove that a timeout raises the timeout exception; they do not prove a total-time cap.
 - **Rationale**: The SDK default is 10 minutes, too long for an interactive service. 60 s is a
   starting point chosen by judgment, **not a measured value**; the manual real call (feature
@@ -120,7 +136,7 @@ before the related test is written.
   value (FR-016). `LLMConfigurationError` is deliberately **not** a subclass of `LLMError`: it is a
   setup mistake, not a provider failure, so code that catches `LLMError` around calls does not
   swallow it.
-- **`SecretStr`**: its `repr` and `str` show `**********` (*confirm on install*); the adapter
+- **`SecretStr`**: its `repr` and `str` show `**********` (confirmed: `repr` gives `SecretStr('**********')`, `str` gives `**********`); the adapter
   calls `get_secret_value()` once, to build the SDK client, and keeps no other copy.
 - **Tests must ignore a developer's `.env`**: settings tests construct `LLMSettings(_env_file=None)`
   and use `monkeypatch` to set or remove variables.
@@ -132,9 +148,8 @@ before the related test is written.
 
 - **Decision**: `FakeLLMClient` in `tests/fake_llm.py`, with a `fake_llm` fixture in
   `tests/conftest.py` that returns a fresh instance. Test modules import it with
-  `from fake_llm import FakeLLMClient` (*confirm on install*: this relies on pytest putting
-  `tests/` on `sys.path`, its default for a folder without `__init__.py`; if it does not work, add
-  `tests` to `pythonpath` in `pyproject.toml`). It holds a queue of scripted items,
+  `from fake_llm import FakeLLMClient` (confirmed: this works because pytest puts `tests/` on
+  `sys.path`; `tests/` has no `__init__.py`; no `pyproject.toml` change needed). It holds a queue of scripted items,
   each an `LLMResponse` or an `LLMError` instance, consumed in order by `complete`. It records
   every `LLMRequest` it receives in `calls`. Helpers: `will_return(...)`, `will_fail(error)`.
   An empty queue raises `FakeScriptExhaustedError`, which is **not** an `LLMError`, so code under
@@ -149,16 +164,17 @@ before the related test is written.
 ## 9. Async tests without a new dependency
 
 - **Decision**: Use the `anyio` pytest plugin, already installed as a dependency of Starlette
-  (*confirm on install*), with `@pytest.mark.anyio` and an `anyio_backend` fixture fixed to
-  `"asyncio"` in `tests/conftest.py` (trio is not installed). Fallback if the plugin is not
+  (confirmed: the `anyio` entry point is registered under `pytest11`), with `@pytest.mark.anyio`. No `anyio_backend` fixture is needed: the plugin
+  parametrizes only the installed backends and trio is not installed (confirmed in T009; add a
+  fixed `"asyncio"` fixture if trio is ever installed). Fallback if the plugin is not
   active: `asyncio.run(...)` inside plain sync tests.
 - **Alternatives considered**: Adding `pytest-asyncio` (rejected for now: a new dev dependency
   with no need).
 
 ## 10. New dependency: the Anthropic SDK
 
-- **Decision**: Add `anthropic` (current major, resolved by `uv add anthropic`) as a runtime
-  dependency. `pydantic-settings` is already declared in `pyproject.toml`; no new entry.
+- **Decision**: Add `anthropic` (resolved by `uv add anthropic`; installed version **2.10.0**,
+  declared as `anthropic>=2.10.0`) as a runtime dependency. `pydantic-settings` is already declared in `pyproject.toml`; no new entry.
 - **Justification (constitution, Technical Constraints)**: The official SDK provides the typed
   exception classes, the response models and the request handling that the adapter translates.
   Writing raw HTTP would mean re-implementing authentication headers, error classification and
