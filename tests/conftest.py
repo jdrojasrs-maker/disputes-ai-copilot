@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from disputes.main import app
 from disputes.repository import InMemoryDisputeRepository
 from disputes.routes import get_repository
+from fake_llm import FakeLLMClient
 
 
 @pytest.fixture
@@ -83,3 +84,8 @@ def block_network(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.setattr(cls, "create_connection", wrapped)
         if "sock_connect" in vars(cls):
             monkeypatch.setattr(cls, "sock_connect", wrap_sock_connect(cls.sock_connect))
+
+
+@pytest.fixture
+def fake_llm() -> FakeLLMClient:
+    return FakeLLMClient()

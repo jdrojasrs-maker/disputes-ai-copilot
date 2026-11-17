@@ -178,18 +178,22 @@ failures into it is tested in Phase 6 with the `[US3]` label.)
 **Independent Test**: Each exception is an `LLMError`, and its `retryable` flag has the intended
 value without creating an instance.
 
-- [ ] T018 [US3] Write `tests/test_llm_errors.py` (sync): the five subclasses are subclasses of
+- [X] T018 [US3] Write `tests/test_llm_errors.py` (sync): the five subclasses are subclasses of
   `LLMError`; `retryable` read on the class (no instance) is `True` for `LLMRateLimitError`,
   `LLMTimeoutError`, `LLMProviderUnavailableError` and `False` for `LLMAuthenticationError`,
   `LLMBadRequestError` and the base `LLMError` (FR-010); `status_code` and `request_id` default to
   `None` and can be set through the constructor; `str(exc)` is the message given;
   `LLMConfigurationError` is **not** a subclass of `LLMError`; `catch LLMError` does not catch it
-- [ ] T019 [US3] Run it and confirm red (module missing). Record the reason
-- [ ] T020 [US3] (owner) Implement `src/disputes/llm/errors.py` with the hierarchy in
+  **Result: `tests/test_llm_errors.py` written (20 test cases).**
+- [X] T019 [US3] Run it and confirm red (module missing). Record the reason
+  **Result: fails at collection with `ImportError` on `disputes.llm.errors`, the expected reason.**
+- [X] T020 [US3] (owner) Implement `src/disputes/llm/errors.py` with the hierarchy in
   data-model.md: `retryable` as a class attribute, optional `status_code` and `request_id`
   attributes, and a separate `LLMConfigurationError`
-- [ ] T021 [US3] Run `uv run pytest tests/test_llm_errors.py` and `uv run ruff check .`; confirm
+  **Result: `src/disputes/llm/errors.py` written by the assistant at the owner's request (the owner must still be able to explain every line before committing).**
+- [X] T021 [US3] Run `uv run pytest tests/test_llm_errors.py` and `uv run ruff check .`; confirm
   green and clean
+  **Result: 20 passed; full suite 303 passed; `ruff check .` clean.**
 
 **Checkpoint**: US3 vocabulary ready; the fake and the adapter can use it.
 
@@ -203,7 +207,7 @@ failures.
 **Independent Test**: Script two answers and one failure, make three calls, and check order,
 the raised failure and the recorded requests.
 
-- [ ] T022 [US2] Write `tests/test_llm_fake.py` (async, `@pytest.mark.anyio`), importing
+- [X] T022 [US2] Write `tests/test_llm_fake.py` (async, `@pytest.mark.anyio`), importing
   `from fake_llm import FakeLLMClient, FakeScriptExhaustedError`: scripted responses come back in
   order; every request is recorded in `calls`, in order, equal to what was sent; a scripted
   failure of each of the six kinds (authentication, bad request, rate limit, timeout, provider
@@ -212,15 +216,20 @@ the raised failure and the recorded requests.
   `LLMError`; the fake is an `LLMClient`; the request's messages are unchanged after the call;
   the `fake_llm` fixture gives a fresh instance per test; no network: monkeypatch
   `socket.socket` to raise, use the fake, and assert nothing raised (FR-019)
-- [ ] T023 [US2] Run it and confirm red (`fake_llm` missing). Record the reason
-- [ ] T024 [US2] (AI may draft) Implement `tests/fake_llm.py`: `FakeLLMClient` with a queue,
+  **Result: `tests/test_llm_fake.py` written (16 test cases, 12 async with the anyio marker).**
+- [X] T023 [US2] Run it and confirm red (`fake_llm` missing). Record the reason
+  **Result: fails at collection with `ModuleNotFoundError: No module named 'fake_llm'`, the expected reason.**
+- [X] T024 [US2] (AI may draft) Implement `tests/fake_llm.py`: `FakeLLMClient` with a queue,
   `will_return(response)`, `will_fail(error)`, `calls`, `complete`, plus
   `FakeScriptExhaustedError` (see research.md section 8). Keep it small enough to read in one
   sitting
-- [ ] T025 [US2] (AI may draft) Add the `fake_llm` fixture to `tests/conftest.py`, returning a
+  **Result: `tests/fake_llm.py` written. `calls` is recorded before the script is checked, so an exhausted call is still visible in `calls`.**
+- [X] T025 [US2] (AI may draft) Add the `fake_llm` fixture to `tests/conftest.py`, returning a
   new `FakeLLMClient()`
-- [ ] T026 [US2] Run `uv run pytest tests/test_llm_fake.py` and `uv run ruff check .`; confirm
+  **Result: `fake_llm` fixture added to `tests/conftest.py`.**
+- [X] T026 [US2] Run `uv run pytest tests/test_llm_fake.py` and `uv run ruff check .`; confirm
   green and clean
+  **Result: 16 passed; full suite 319 passed; `ruff check .` clean. Ruff treats `fake_llm` as first-party (because `src` includes `tests`), so it sorts with the `disputes` imports; fixed with `ruff check --select I --fix`.**
 
 **Checkpoint**: US1, US3 and US2 work with no key and no network.
 
