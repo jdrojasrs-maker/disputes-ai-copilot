@@ -40,16 +40,22 @@ those classes is tested in the adapter phase (US4) with the `[US3]` label.
 
 **Purpose**: Confirm the baseline, branch, add the dependency, check install-time facts
 
-- [ ] T001 On branch `docs/spec-kit-003-llm-client` run `uv sync`, `uv run pytest` and
+- [X] T001 On branch `docs/spec-kit-003-llm-client` run `uv sync`, `uv run pytest` and
   `uv run ruff check .`; record the number of passing tests and that lint is clean (no files
-  changed). Do not assume the number: read it from the output
-- [ ] T002 Commit the spec artifacts (`specs/003-llm-client/`, `.specify/feature.json`) on
+  changed). Do not assume the number: read it from the output.
+  **Result (2026-11-17, run on `feat/003-llm-client`, same code as `develop`): 243 passed in
+  12.68 s; `ruff check .` clean; working tree unchanged.**
+- [X] T002 Commit the spec artifacts (`specs/003-llm-client/`, `.specify/feature.json`) on
   `docs/spec-kit-003-llm-client` as one docs commit (leave the unrelated `CLAUDE.md` edit out
   unless you mean to include it)
-- [ ] T003 Create the implementation branch `feat/003-llm-client` from that docs branch
-- [ ] T004 Add the dependency with `uv add anthropic`; check that only `pyproject.toml` and
+- [X] T003 Create the implementation branch `feat/003-llm-client` from that docs branch
+  (done after merging the docs PR #5 into `develop`, so the branch starts from the updated
+  `develop`)
+- [X] T004 Add the dependency with `uv add anthropic`; check that only `pyproject.toml` and
   `uv.lock` changed; record the installed version in `specs/003-llm-client/research.md` section 10
-- [ ] T005 [P] Check the *(confirm on install)* facts with throwaway commands in the scratch
+  **Result: `anthropic 2.10.0` (`anthropic>=2.10.0` in `pyproject.toml`); only `pyproject.toml`
+  and `uv.lock` changed; recorded in research.md section 10.**
+- [X] T005 [P] Check the *(confirm on install)* facts with throwaway commands in the scratch
   area, not committed: (a) `anthropic.APITimeoutError` is a subclass of
   `anthropic.APIConnectionError`; (b) the attribute that holds retries on `AsyncAnthropic(...,
   max_retries=0)` and on its timeout; (c) `repr(SecretStr("x"))` and `str(...)` are masked;
@@ -59,12 +65,24 @@ those classes is tested in the adapter phase (US4) with the `[US3]` label.
   SDK expects, for example `DefaultAsyncHttpxClient`); (g) the `request-id` response header is
   exposed on the SDK's status errors. Write each observed result into research.md in place of its
   mark; if (d) or (e) fail, apply the fallback written in research.md sections 8 and 9
-- [ ] T006 [P] (AI may draft) Add the three variables to `.env.example` with placeholders only
+  **Result (2026-11-17, `anthropic 2.10.0`)**: (a) `APITimeoutError` is a subclass of
+  `APIConnectionError`: yes. (b) `client.max_retries` and `client.timeout` hold the given values
+  (`0`, `5.0`). (c) `SecretStr` masks `repr` and `str`. (d) `anyio` registered under `pytest11`.
+  (e) a module in `tests/` imports by bare name: yes. (f) `DefaultAsyncHttpxClient(transport=
+  httpx2.MockTransport(...))` works; `max_retries=0` gave 1 request, `max_retries=2` gave 3.
+  (g) `e.request_id` exists and equals the `request-id` header. Extra: the SDK has its own
+  `RequestTimeoutError` (408), `ConflictError` (409) and `OverloadedError` (529, subclass of
+  `InternalServerError`); a float timeout reaches httpx as connect/read/write/pool. Details in
+  research.md; the section 4 table was updated to translate by class.
+- [X] T006 [P] (AI may draft) Add the three variables to `.env.example` with placeholders only
   (`ANTHROPIC_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT_SECONDS=60`), keeping the existing
   `DATABASE_URL` line. Comment the timeout as "maximum seconds to wait for each phase of a call
   (not a total cap)". The key placeholder must not look like a real key (FR-018). Confirm
   `.env` stays ignored (`git check-ignore .env`) and `.env.example` is not
-- [ ] T007 Create the empty package `src/disputes/llm/__init__.py`
+  ignored. **Result: `.env` is ignored (`.gitignore` line 12), `.env.example` is not; three variables
+  added with placeholders.**
+- [X] T007 Create the empty package `src/disputes/llm/__init__.py`
+  **Result: created (empty file); `import disputes.llm` works and ruff is clean.**
 
 ---
 
