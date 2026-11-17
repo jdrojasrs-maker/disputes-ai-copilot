@@ -5,8 +5,9 @@ Prerequisites: `uv sync` done. No API key is needed for the first two parts.
 ## 1. Unit tests (no network, no key)
 
 ```bash
-uv run pytest tests/test_llm_models.py tests/test_llm_errors.py tests/test_llm_fake.py \
-  tests/test_llm_settings.py tests/test_llm_anthropic_adapter.py
+uv run pytest tests/test_llm_models.py tests/test_llm_client_protocol.py tests/test_llm_errors.py \
+  tests/test_llm_fake.py tests/test_llm_settings.py tests/test_llm_anthropic_adapter.py \
+  tests/test_network_guard.py
 uv run pytest        # whole suite, same as CI
 uv run ruff check .
 ```
@@ -22,7 +23,7 @@ in order. See [contracts/llm-client.md](contracts/llm-client.md) for the methods
 ## 3. Configuration errors
 
 With the key unset, `AnthropicLLMClient.from_env()` must raise `LLMConfigurationError` whose
-message names `ANTHROPIC_API_KEY`, while `import disputes.llm.anthropic_adapter` must succeed.
+message names `ANTHROPIC_API_KEY` (and `LLM_MODEL` if that is also missing), while `import disputes.llm.anthropic_adapter` must succeed.
 
 ## 4. One real call (manual, not in CI, costs a small amount on your key)
 

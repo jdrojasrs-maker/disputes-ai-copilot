@@ -350,30 +350,37 @@ the key never appears. Separately, one manual real call.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T041 (owner) Fill `src/disputes/llm/__init__.py` with re-exports of the interface, models,
+- [X] T041 (owner) Fill `src/disputes/llm/__init__.py` with re-exports of the interface, models,
   errors and settings, but **not** the adapter (importing the package must not load the SDK).
   Add a one-line test in `tests/test_llm_models.py` that `from disputes.llm import LLMClient,
   LLMRequest, LLMResponse, LLMError` works
-- [ ] T042 (AI may draft) Update `README.md`: the Roadmap row for feature 003 and a short "LLM
+  **Result: two tests added to `tests/test_llm_models.py` first: the package exports the public pieces (red: `ImportError`) and importing `disputes.llm` does not load the `anthropic` SDK (passed already while the package was empty, so it only guards against regressions). Then `src/disputes/llm/__init__.py` written (written by the assistant at the owner's request). 36 passed in that file.**
+- [X] T042 (AI may draft) Update `README.md`: the Roadmap row for feature 003 and a short "LLM
   client" section stating only what exists and is tested (interface, fake in `tests/`, Anthropic
   adapter, environment variables, how to run the manual call) with retries, Azure adapter and
   any endpoint labelled planned. Constitution VI
-- [ ] T043 (AI may draft) Update `docs/ARCHITECTURE.md` with the `disputes.llm` package: the
+  **Result: README updated: new "LLM client" section (what exists and is tested), configuration table and the manual call, the limits line, and the roadmap (003 Done; the Azure OpenAI adapter split into its own Planned row). No figures were added that were not measured.**
+- [X] T043 (AI may draft) Update `docs/ARCHITECTURE.md` with the `disputes.llm` package: the
   interface, the one-SDK-import rule, the failure table and the "no hidden retries" decision
-- [ ] T044 Run the full suite and lint: `uv run pytest` and `uv run ruff check .`; record the
+  **Result: `docs/ARCHITECTURE.md` updated: diagram labels, the `disputes.llm` modules in the "what exists" table, four new design decisions (one attempt, secret key and error raising, settings timing, one adapter per provider) and the testing approach (socket guard, in-memory transport, manual evidence).**
+- [X] T044 Run the full suite and lint: `uv run pytest` and `uv run ruff check .`; record the
   passing count (compare with T001) and that no test needed a key or the network (the socket
   guard from T010a enforces it; also run once with `ANTHROPIC_API_KEY` unset)
-- [ ] T045 Check SC-001 (deterministic over 100 runs): run
+  **Result: `uv run pytest`: 382 passed; with `ANTHROPIC_API_KEY`, `LLM_MODEL` and `LLM_TIMEOUT_SECONDS` removed from the environment: 382 passed; `ruff check .` clean. The count is 243 (T001) plus the tests of this feature. No test used a key or the network (the guard in `tests/conftest.py` enforces it).**
+- [X] T045 Check SC-001 (deterministic over 100 runs): run
   `for i in $(seq 1 100); do uv run pytest -q tests/test_llm_fake.py || break; done` and record that
   all passed; check SC-002 to SC-008 against the tests and record where each is covered
   (tracing table in the PR description)
-- [ ] T046 Walk through [quickstart.md](quickstart.md) sections 1 to 3 as written and note any
+  **Result: SC-001: `tests/test_llm_fake.py` run 100 times in separate processes, 0 failed. Coverage of the other criteria: SC-002 `test_llm_errors.py` (flags), `test_llm_fake.py` (six kinds raised), `test_llm_anthropic_adapter.py` (translation); SC-003 the guard plus `test_network_guard.py`, and the suite passes with the variables unset; SC-004 `test_llm_settings.py` (printed settings) and the adapter key-safety test (error text, traceback, `repr`, logs); SC-005 `test_a_failing_call_is_attempted_exactly_once`; SC-006 the import-without-key subprocess test and `test_from_env_without_a_key_names_the_missing_variable`; SC-007 `docs/evidence/llm-client-anthropic.md`; SC-008 `test_a_caller_works_the_same_with_the_fake_and_with_the_adapter`. Put this table in the PR description.**
+- [X] T046 Walk through [quickstart.md](quickstart.md) sections 1 to 3 as written and note any
   step that does not work as described; fix the document
-- [ ] T047 Update `CLAUDE.md` per "Al cerrar una feature": "Estado actual", the roadmap row 003
+  **Result: sections 1 to 3 walked through as written. Section 1: 133 passed; section 2 worked in a temporary test (deleted); section 3: import ok and the error names `ANTHROPIC_API_KEY` and `LLM_MODEL`. Fixes to the document: the test list in section 1 now includes the protocol and network-guard tests, and section 3 mentions that `LLM_MODEL` is named too.**
+- [X] T047 Update `CLAUDE.md` per "Al cerrar una feature": "Estado actual", the roadmap row 003
   (the Azure OpenAI adapter in the description stays pending), and move to "Decisiones ya
   tomadas" what was confirmed (the `LLMClient` shape, `retryable` flag, `max_retries=0`, key as
   `SecretStr`, fake in `tests/`, configuration error not an `LLMError`). Keep the file's language
   convention
+  **Result: `CLAUDE.md` updated: current state (feature 003 done, pending PR; Azure adapter pending; next step), the roadmap row (Azure split into its own row) and six confirmed decisions moved to "Decisiones ya tomadas". It says "pendiente de PR" because T048 is not done; change it to merged after the PR.**
 - [ ] T048 Open the PR from `feat/003-llm-client` into `develop`; wait for CI green (tests,
   lint, and the existing image job, which must still start the container with no key set); fix
   anything red; merge only when green

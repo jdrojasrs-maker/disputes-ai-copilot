@@ -39,11 +39,21 @@ Every error uses the same format, including unknown routes and wrong methods:
            "details": [{"field": "amount", "message": "Input should be greater than 0"}]}}
 ```
 
+### LLM client (internal; no endpoint uses it yet)
+
+A provider-neutral way to ask a language model, in `src/disputes/llm/`. It is a Python interface for later features, not an HTTP feature.
+
+- **Interface**: `LLMClient.complete(request)`, async. A request has an optional system prompt, a non-empty list of messages (role `user` or `assistant`, text not empty) and `max_tokens`. There are no sampling parameters (`temperature`, `top_p`, `top_k`): they are rejected, because current Claude models reject them. The response is immutable: text, token usage, the model that answered and a neutral stop reason (`completed`, `max_tokens`, `other`). A cut-off answer is returned, not raised.
+- **Failures**: provider errors become the service's own `LLMError` family (authentication, bad request, rate limit, timeout, provider unavailable, and a base error), each with a `retryable` flag. Nothing retries yet: **the adapter makes one attempt per call**, with the SDK's own automatic retries turned off.
+- **Anthropic adapter**: `AnthropicLLMClient`, built from the environment. The API key is a secret value that is never printed, logged or put in an error message; a missing key fails with an error naming `ANTHROPIC_API_KEY` when the adapter is built, not when the module is imported.
+- **Fake for tests**: `FakeLLMClient` (in `tests/`) returns scripted answers and failures and records the requests. Unit tests never call a real model: a guard in `tests/conftest.py` makes any real network connection fail the test, and the adapter is tested with the real SDK against an in-memory HTTP transport.
+- **Evidence of a real call**: one call was made by hand and is recorded in [`docs/evidence/llm-client-anthropic.md`](docs/evidence/llm-client-anthropic.md), including what it does not show. It is not run in CI.
+
 **Current limits:**
 - Disputes are stored **in memory**: they are lost on restart, and with several worker processes each process has its own copy.
 - A transition is atomic (a lock inside the in-memory repository) only within one process. With several worker processes each has its own memory and its own lock; PostgreSQL (feature 006) is what removes that limit.
 - No authentication, and the referenced transaction is not checked to exist.
-- No AI components yet.
+- The LLM client exists (see below) but **no endpoint uses it yet**: there is no AI behavior in the API today.
 
 ## Roadmap
 
@@ -53,7 +63,8 @@ Feature numbers are tentative. Each feature is specified with [Spec Kit](https:/
 |---|---|---|
 | 001 | Create and fetch disputes | Done |
 | 002 | State transitions, safe under concurrent requests | Done |
-| 003 | LLM client abstraction (Anthropic and Azure OpenAI adapters, fake for tests) | Planned |
+| 003 | LLM client abstraction: interface, fake for tests, Anthropic adapter | Done |
+| — | Azure OpenAI adapter for the same interface | Planned |
 | 004 | Intake: free text to a validated dispute (structured output) | Planned |
 | 005 | Evaluation dataset and script (accuracy, latency, cost) | Planned |
 | 006 | PostgreSQL persistence with migrations | Planned |
@@ -101,6 +112,20 @@ Transitions are tested for races at two levels, and the two prove different thin
 
 - `test_transition_is_atomic_under_a_slow_read` (repository): 8 threads try the same move on one dispute while reads are made slow on purpose. Exactly one succeeds. Without the lock all 8 succeed, so this test is what proves the lock is needed.
 - `tests/test_transition_concurrency.py` (HTTP): competing requests are released together by a barrier, 50 rounds per case, and every round must end with a valid state and an unbroken history. The barrier starts the requests together but cannot force the handlers to interleave, so these tests check that no round ends in an invalid result; they pass even without the lock.
+
+### LLM client configuration
+
+Only needed to build the Anthropic adapter (no endpoint does yet) and to run the manual call. Copy `.env.example` to `.env` (ignored by git) and fill in:
+
+| Variable | Required | Notes |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | yes | your own key; never commit it |
+| `LLM_MODEL` | yes | the model identifier to send; there is no default |
+| `LLM_TIMEOUT_SECONDS` | no | default 60: the maximum wait for each phase of a call, not a total cap |
+
+```bash
+uv run python scripts/manual_anthropic_call.py   # one real call, manual only; costs a small amount
+```
 
 Local database (the service does not use it yet; it is ready for the persistence feature):
 
