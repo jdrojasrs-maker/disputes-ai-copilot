@@ -64,7 +64,8 @@ Python 3.12, FastAPI, Pydantic v2, uv, ruff, pytest, Docker Compose. PostgreSQL 
 
 ## Reglas del repo
 - Ramas de feature con PR hacia `develop`; `main` solo recibe merges de `develop`. El CI debe estar verde antes de fusionar.
-- Pruebas primero (rojo, luego verde). Cada feature sigue Spec Kit: spec, clarify, plan, tasks, analyze, implementación.
+- Pruebas primero (rojo, luego verde), pero pocas y centradas en lo fundamental (constitución v2.0.0, Principio I): reglas de negocio, concurrencia y seguridad. Sin número fijo por feature; si el plan prevé más de ~15 pruebas, justificarlo en una línea. No probar lo que el framework ya garantiza; los casos borde de bajo riesgo van a una lista. Cada prueba debe poder explicarse línea por línea. Las pruebas de las features 001-003 no se tocan.
+- Cada feature sigue Spec Kit: spec, clarify, plan, tasks, analyze, implementación.
 - El README y la documentación afirman solo lo que existe y está probado; lo planeado se etiqueta como planeado. Cifras medidas, nunca inventadas.
 - Nunca versionar claves ni datos reales. Las claves se leen del entorno; los archivos de ejemplo llevan marcadores.
 - Una dependencia central nueva requiere justificación en el plan de la feature o una enmienda de la constitución.
