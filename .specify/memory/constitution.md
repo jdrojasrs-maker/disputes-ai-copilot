@@ -2,14 +2,20 @@
 
 ## Core Principles
 
-### I. Tests First (NON-NEGOTIABLE)
-Every behavior MUST have an automated test that fails before the implementation exists and
-passes after it. The red-then-green order MUST be followed for each change: write the test,
-watch it fail for the expected reason, then write the code. No behavior is merged without a
-test that covers it.
+### I. Tests First, Focused on What Matters (NON-NEGOTIABLE)
+Every business rule, concurrency risk and security risk MUST have an automated test that
+fails before the implementation exists and passes after it. The red-then-green order MUST be
+followed: write the test, watch it fail for the expected reason, then write the code.
+
+Tests MUST be few and focused. The owner MUST be able to explain every test line by line; a
+test the owner cannot explain MUST NOT be merged. Behavior already guaranteed by the framework
+(for example, Pydantic type validation) and low-risk edge cases MUST NOT be tested in bulk;
+low-risk edge cases are recorded in a list instead. There is no fixed number of tests per
+feature, but if a feature plan expects more than about 15 tests, the plan MUST state in one
+line why.
 
 Rationale: tests written first prove the test can fail and keep the code limited to what is
-specified.
+specified; tests the owner cannot read give no confidence and slow the project down.
 
 ### II. Valid State Transitions Only
 A dispute MUST move only through explicitly allowed state transitions, defined in one place
@@ -78,4 +84,4 @@ clarifications and wording fixes. Every PR review MUST check compliance with the
 and any deviation MUST be justified in the PR description. Runtime guidance for the AI assistant
 lives in `CLAUDE.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-10 | **Last Amended**: 2026-11-10
+**Version**: 2.0.0 | **Ratified**: 2026-11-10 | **Last Amended**: 2026-11-17
