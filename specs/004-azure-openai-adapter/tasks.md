@@ -75,43 +75,48 @@ the mapped response (text, tokens, versioned model name, stop reason).
 
 ### Tests for US1 (write first, confirm red)
 
-- [ ] T006 [US1] *(owner)* Create `tests/test_llm_azure_adapter.py` with the helpers it needs: a
+- [X] T006 [US1] *(owner)* Create `tests/test_llm_azure_adapter.py` with the helpers it needs: a
   `Wire` recorder like the one in `tests/test_llm_anthropic_adapter.py` (copy the idea, do not
   import from that file), a `completion_body(...)` builder for the Azure chat-completions JSON
   (`choices[0].message.content`, `choices[0].finish_reason`, `usage.prompt_tokens`,
   `usage.completion_tokens`, `usage.total_tokens`, `model`), and a `build(wire)` that constructs
   `AzureOpenAILLMClient(api_key=SecretStr(SENTINEL), base_url=..., deployment=..., timeout_seconds=...,
   http_client=openai.DefaultAsyncHttpxClient(transport=httpx2.MockTransport(wire)))`
-- [ ] T007 [US1] *(owner)* Test 5 in `tests/test_llm_azure_adapter.py`: the outgoing body has
+  **Done: helpers in place (`Wire`, `completion_body`, `build`).**
+- [X] T007 [US1] *(owner)* Test 5 in `tests/test_llm_azure_adapter.py`: the outgoing body has
   `max_completion_tokens` equal to the request's maximum, has no `max_tokens`, has `model` equal to
   the deployment, has the system prompt as a first message with role `system` (and none when there
   is no system prompt), keeps the message order, has none of `temperature`, `top_p`, `top_k`, and
   the request carries the key as a bearer header (observe the real header name first, as was done
   for Anthropic). Run it: it must fail because the module does not exist (red)
-- [ ] T008 [US1] *(owner)* Test 6 in `tests/test_llm_azure_adapter.py`: parameterized over
+  **Red observed: `ModuleNotFoundError: disputes.llm.azure_openai_adapter` (collection error). The Bearer header was observed as `authorization: Bearer <key>`. The no-system-prompt check is a second call inside this same test, to keep the budget.**
+- [X] T008 [US1] *(owner)* Test 6 in `tests/test_llm_azure_adapter.py`: parameterized over
   `finish_reason` — `stop` gives completed; `length` gives max tokens, with the cut text returned
   and no exception; `content_filter`, `tool_calls` give other. Also assert that the model name
   returned is the one in the answer, not the deployment, and that tokens come from
   `prompt_tokens` and `completion_tokens`: the simulated usage carries a non-zero
   `completion_tokens_details.reasoning_tokens` smaller than `completion_tokens`, and the test
   asserts `output_tokens == completion_tokens` (no adjustment, spec US1 scenario 6). Run: red
+  **Red observed with T007 (same missing module). The tokens/model assertions live inside the parameterized finish-reason test (4 cases), to keep the budget.**
 
 ### Implementation for US1
 
-- [ ] T009 [US1] *(owner)* Create `src/disputes/llm/azure_openai_adapter.py`: `AzureOpenAILLMClient`
+- [X] T009 [US1] *(owner)* Create `src/disputes/llm/azure_openai_adapter.py`: `AzureOpenAILLMClient`
   with a keyword-only `__init__(api_key: SecretStr, base_url: str, deployment: str,
   timeout_seconds: float, http_client=None)` that builds `openai.AsyncOpenAI(api_key=<unwrapped
   once>, base_url=base_url, max_retries=0, timeout=timeout_seconds, http_client=http_client)`;
   `__repr__` shows the deployment and never the key. This is the only module that imports `openai`
-- [ ] T010 [US1] *(owner)* In the same file implement `complete`: build the messages (system first
+  **Done.**
+- [X] T010 [US1] *(owner)* In the same file implement `complete`: build the messages (system first
   when present), call `chat.completions.create(model=<deployment>,
   messages=..., max_completion_tokens=request.max_tokens)`, map text from `choices[0].message.content`,
   usage from `prompt_tokens`/`completion_tokens`, model from the answer, and `finish_reason` via a
   module-level table (`stop` completed, `length` max tokens, anything else other)
-- [ ] T011 [US1] Run T007 and T008: they pass (green). Run `uv run ruff check .`
+  **Done. Not yet: error translation and the no-text check (US3) and `from_env` (US4); for now an SDK error would propagate as is.**
+- [X] T011 [US1] Run T007 and T008: they pass (green). Run `uv run ruff check .`
 
 **Checkpoint**: Azure happy path works with simulated transport. US1 done (2 test functions)
-
+  **Green: 5 passed (2 test functions); `ruff check src tests` clean; full suite 382 + 5 passed.**
 ---
 
 ## Phase 3: User Story 2 - One shared behavior suite proves every implementation (Priority: P1)
@@ -124,28 +129,39 @@ times (once per implementation), all green.
 
 ### Tests for US2 (write first, confirm red)
 
-- [ ] T012 [US2] *(owner)* Create `tests/llm_harness.py`: a `Harness` per implementation exposing
+- [X] T012 [US2] *(owner)* Create `tests/llm_harness.py`: a `Harness` per implementation exposing
   `client`, `script_answer(text, input_tokens, output_tokens, model, stop)` and `calls` (number of
   provider calls). Three builders: fake (`will_return`), Anthropic (handler returning
   an Anthropic message body, built like `tests/test_llm_anthropic_adapter.py` does), Azure
   (handler returning a chat-completions body). Do not edit `tests/fake_llm.py` or the Anthropic
   test file. Add a pytest fixture parameterized over the three builders (ids `fake`, `anthropic`,
   `azure`) in `tests/test_llm_contract.py`
-- [ ] T013 [US2] *(owner)* Test 1 in `tests/test_llm_contract.py`: an answer comes back as the
+  **Done early (needed by test 4): `tests/llm_harness.py` (fake, Anthropic, Azure) and the `harness` fixture in `tests/test_llm_contract.py`. Tests 1-3 of US2 (T013-T015) are not written yet.**
+
+- [X] T013 [US2] *(owner)* Test 1 in `tests/test_llm_contract.py`: an answer comes back as the
   neutral response (text, input and output tokens, answering model, completed) and the client is an
   `LLMClient`. Run: green for fake and Anthropic at once, green for Azure after T011; record that
   in the task notes (the test guards regressions for the first two)
-- [ ] T014 [US2] *(owner)* Test 2 in `tests/test_llm_contract.py`: an answer cut by the token limit
+  **Done. Passed at once for the three implementations (they already existed): regression guard, not a red.**
+
+- [X] T014 [US2] *(owner)* Test 2 in `tests/test_llm_contract.py`: an answer cut by the token limit
   is returned with stop reason max tokens and the text produced so far; no exception
-- [ ] T015 [US2] *(owner)* Test 3 in `tests/test_llm_contract.py`: the request is equal to a deep
+  **Done. Passed at once for the three implementations (regression guard).**
+
+- [X] T015 [US2] *(owner)* Test 3 in `tests/test_llm_contract.py`: the request is equal to a deep
   copy of itself after a call, and two concurrent calls (`asyncio.gather`) each get their own
   answer (the stand-in answers with the text of the last user message)
-- [ ] T016 [US2] Run `uv run pytest tests/test_llm_contract.py`: 9 cases pass (tests 1-3 x 3
+  **Done. Passed at once (regression guard). The harness got `script_echo()` so the stand-in answers each call with its own last message.**
+
+- [X] T016 [US2] Run `uv run pytest tests/test_llm_contract.py`: 9 cases pass (tests 1-3 x 3
   implementations; test 4 is added in US3). If a case fails for Azure, fix the adapter (not the
   test) unless the test is wrong; record what you found
-- [ ] T017 [US2] Make the shared suite catch a broken implementation: temporarily break one
+  **Result: 27 cases in the contract file (tests 1-3 x 3 = 9, plus test 4 x 6 kinds x 3 = 18), all green.**
+
+- [X] T017 [US2] Make the shared suite catch a broken implementation: temporarily break one
   mapping in the Azure adapter (for example swap input and output tokens), see test 1 fail for
   `azure` only, then restore it. Record the result (SC-002 evidence); do not commit the break
+  **Result: with input and output tokens swapped in the Azure adapter, test 1 failed for `azure` only (1 failed, 26 passed); restored. Full suite 430 passed, `ruff check src tests` clean.**
 
 **Checkpoint**: three implementations pass one suite. US2 done (3 test functions, 9 cases)
 
@@ -161,42 +177,56 @@ number of calls and message content.
 
 ### Tests for US3 (write first, confirm red)
 
-- [ ] T018 [US3] *(owner)* Test 4 in `tests/test_llm_contract.py` (shared, parameterized over 6
+- [X] T018 [US3] *(owner)* Test 4 in `tests/test_llm_contract.py` (shared, parameterized over 6
   failure kinds x 3 implementations): authentication, bad request, rate limit, timeout, provider
   unavailable, other raise the matching service error with the right `retryable` flag. The harness
   gets `script_failure(kind)`: the fake uses `will_fail`; the adapters use HTTP 401, 400, 429, a
   transport read timeout, 503 and 418. Run: red for Azure (no translation yet), green for the
   other two
-- [ ] T019 [US3] *(owner)* Test 7 in `tests/test_llm_azure_adapter.py`: parameterized — empty
+  **Red observed: 6 Azure cases failed (SDK errors propagated untranslated); the 12 fake/Anthropic cases passed at once (regression guards).**
+
+- [X] T019 [US3] *(owner)* Test 7 in `tests/test_llm_azure_adapter.py`: parameterized — empty
   `choices`, `content` null with `finish_reason` `content_filter`, `content` of blank text, and a
   missing `usage` — each raises the base `LLMError` (exactly that class, not retryable) with a
   message that does not include the provider's text. Run: red
-- [ ] T020 [US3] *(owner)* Test 8 in `tests/test_llm_azure_adapter.py`: parameterized over 500, 429,
+  **Red observed: 4 cases failed (`ValidationError` on `text=None`, `IndexError` on empty choices, no usage check).**
+
+- [X] T020 [US3] *(owner)* Test 8 in `tests/test_llm_azure_adapter.py`: parameterized over 500, 429,
   a transport read timeout and a connection error, the provider is called exactly once; plus the SDK
   client has `max_retries == 0` and the configured timeout. Run: red/green as the code allows;
   record which
-- [ ] T021 [US3] *(owner)* Test 9 in `tests/test_llm_azure_adapter.py`: for 401, 400, 429, 500, 418,
+  **Red observed: 4 cases failed (the SDK error propagated instead of `LLMError`).**
+
+- [X] T021 [US3] *(owner)* Test 9 in `tests/test_llm_azure_adapter.py`: for 401, 400, 429, 500, 418,
   timeout and connection failures, and for the no-text error, the key sentinel is absent from
   `str`, `repr`, the formatted traceback, the client's `repr` and the captured log, and the
   error's `__cause__` and `__context__` are `None`. Run: red
+  **Red observed: 8 cases failed. The leak test was also checked by mutation: raising inside the `except` block makes 7 cases fail; restored afterwards.**
 
 ### Implementation for US3
 
-- [ ] T022 [US3] *(owner)* In `src/disputes/llm/azure_openai_adapter.py` add `_translate(error)`
+- [X] T022 [US3] *(owner)* In `src/disputes/llm/azure_openai_adapter.py` add `_translate(error)`
   following the table in contracts/azure-adapter-contract.md: test `APITimeoutError` before
   `APIConnectionError`; a plain `APIStatusError` with status 408 is a timeout; 401 and 403
   authentication; 400, 404 and 422 bad request; 429 rate limit; 5xx provider unavailable; anything
   else the base `LLMError`. Messages are `"Azure OpenAI ... (HTTP <status>)"` text written here,
   never `str(error)`; pass `status_code` and `request_id`
-- [ ] T023 [US3] *(owner)* In `complete`, wrap only the SDK call in `try/except openai.OpenAIError`,
+  **Done.**
+
+- [X] T023 [US3] *(owner)* In `complete`, wrap only the SDK call in `try/except openai.OpenAIError`,
   store the translated error in a variable and raise it after the `except` block (same technique
   and comment as the Anthropic adapter), so no `__context__` holds the request
-- [ ] T024 [US3] *(owner)* After the call, raise `LLMError("Azure OpenAI returned no text")` when
+  **Done.**
+
+- [X] T024 [US3] *(owner)* After the call, raise `LLMError("Azure OpenAI returned no text")` when
   `choices` is empty or the first choice's `content` is null or blank, and
   `LLMError("Azure OpenAI returned no token usage")` when `usage` is missing; both fixed service
   text, raised outside any `except`
-- [ ] T025 [US3] Run T018 through T021: all green. Run the whole contract suite: 27 cases
+  **Done.**
+
+- [X] T025 [US3] Run T018 through T021: all green. Run the whole contract suite: 27 cases
   (tests 1-3 x 3 implementations, plus test 4 x 6 kinds x 3) plus the Azure file pass
+  **Green: contract suite 18 cases (test 4 only so far: 6 kinds x 3) + Azure file 21 cases pass (39 in total); `ruff check src tests` clean; full suite 421 passed.**
 
 **Checkpoint**: failures, one attempt, no leaks, no-text handling. US3 done (4 test functions)
 
