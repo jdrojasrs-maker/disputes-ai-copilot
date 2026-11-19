@@ -12,6 +12,7 @@ from disputes.llm.errors import (
     LLMTimeoutError,
 )
 from disputes.llm.models import LLMRequest, LLMResponse, StopReason, TokenUsage
+from disputes.llm.settings import load_azure_settings
 
 # The provider's finish_reason, in neutral terms. Anything not listed (content_filter,
 # tool_calls, ...) is "other".
@@ -82,6 +83,18 @@ class AzureOpenAILLMClient:
             max_retries=0,
             timeout=timeout_seconds,
             http_client=http_client,
+        )
+
+    @classmethod
+    def from_env(cls) -> "AzureOpenAILLMClient":
+        """Build from AZURE_OPENAI_BASE_URL, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT and
+        LLM_TIMEOUT_SECONDS (never at import)."""
+        settings = load_azure_settings()
+        return cls(
+            api_key=settings.azure_openai_api_key,
+            base_url=str(settings.azure_openai_base_url),
+            deployment=settings.azure_openai_deployment,
+            timeout_seconds=settings.llm_timeout_seconds,
         )
 
     def __repr__(self) -> str:

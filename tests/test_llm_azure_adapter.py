@@ -5,6 +5,7 @@ import json
 import logging
 import traceback
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx2
 import openai
@@ -12,7 +13,7 @@ import pytest
 from pydantic import SecretStr
 
 from disputes.llm.azure_openai_adapter import AzureOpenAILLMClient
-from disputes.llm.errors import LLMError
+from disputes.llm.errors import LLMConfigurationError, LLMError
 from disputes.llm.models import LLMRequest, Message, Role, StopReason
 
 SENTINEL = "azure-test-SENTINEL-do-not-leak"
@@ -281,3 +282,36 @@ async def test_the_key_and_the_provider_text_are_in_no_error_traceback_or_log(
     for text in (str(error), repr(error), rendered, repr(client), caplog.text):
         assert SENTINEL not in text
         assert "PROVIDER-TEXT" not in text
+
+
+# Test 10: a missing or invalid setting names its variable when the adapter is built (FR-013).
+# Nothing is read at import: this module imports the adapter at the top, and in CI the AZURE_*
+# variables are not set, so an import-time failure would break the whole file.
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("AZURE_OPENAI_BASE_URL", None),
+        ("AZURE_OPENAI_API_KEY", None),
+        ("AZURE_OPENAI_DEPLOYMENT", None),
+        ("AZURE_OPENAI_BASE_URL", "not a url SUPPLIED-VALUE"),
+    ],
+    ids=["no-base-url", "no-key", "no-deployment", "invalid-base-url"],
+)
+def test_a_missing_or_invalid_setting_names_the_variable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, variable: str, value: str | None
+) -> None:
+    monkeypatch.chdir(tmp_path)  # so no local .env file is read
+    monkeypatch.setenv("AZURE_OPENAI_BASE_URL", BASE_URL)
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", SENTINEL)
+    monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", DEPLOYMENT)
+    if value is None:
+        monkeypatch.delenv(variable)
+    else:
+        monkeypatch.setenv(variable, value)
+
+    with pytest.raises(LLMConfigurationError) as raised:
+        AzureOpenAILLMClient.from_env()
+
+    assert variable in str(raised.value)
+    assert "SUPPLIED-VALUE" not in str(raised.value)
+    assert SENTINEL not in str(raised.value)
