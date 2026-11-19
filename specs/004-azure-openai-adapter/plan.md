@@ -91,7 +91,7 @@ tests/
 ├── test_llm_azure_adapter.py # NEW: Azure-specific behavior
 └── (all existing files unchanged)
 
-scripts/azure_openai_call.py        # NEW: manual real call (replaces the untracked scratch first_azure_call.py)
+scripts/manual_azure_openai_call.py        # NEW: manual real call (replaces the untracked scratch first_azure_call.py)
 docs/evidence/llm-client-azure-openai.md   # NEW: the recorded real call and its limits
 .env.example                        # CHANGED: Azure variables, placeholders only
 pyproject.toml / uv.lock            # CHANGED: add openai

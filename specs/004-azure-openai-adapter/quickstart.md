@@ -32,7 +32,7 @@ With an empty environment (no `AZURE_*` variables), `import disputes.llm.azure_o
 ## 4. One real call (manual, not in CI)
 
 ```text
-uv run python scripts/azure_openai_call.py
+uv run python scripts/manual_azure_openai_call.py
 ```
 
 Expected: printed text, input and output tokens, the model name reported by the service (which

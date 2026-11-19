@@ -22,7 +22,7 @@ environment (Python 3.12), not from memory. Anything neither observed nor read i
 - **Decision**: `chat.completions.create(model=<deployment>, messages=[...], max_completion_tokens=request.max_tokens)`; the system prompt becomes a first message with role `system`; no sampling parameters.
 - **Observed**: the service rejected `max_tokens` (HTTP 400) and wants `max_completion_tokens`; the model field takes the deployment name.
 - **Verified in SDK**: `create` accepts both parameters, so a test must assert the wire body (FR-018).
-- **Unverified**: that `system` (rather than `developer`) is accepted by this deployment. Checked in the manual call.
+- **Verified (manual call, 2026-11-18)**: the `gpt-5.4-mini` deployment accepts the `system` role.
 
 ## D4: Response mapping
 
@@ -55,5 +55,5 @@ environment (Python 3.12), not from memory. Anything neither observed nor read i
 
 ## D9: Manual evidence
 
-- **Decision**: `scripts/azure_openai_call.py` builds the adapter from the environment, sends one request, prints text, usage, model and stop reason, never the key. It replaces the untracked scratch `scripts/first_azure_call.py` (which dumps the raw response JSON and loads `.env` with an undeclared `python-dotenv`; the owner decides whether to keep or delete it). The evidence document states what it does not show: latency, cost, failure kinds other than those actually observed, reasoning-heavy answers, content-filter blocks.
+- **Decision**: `scripts/manual_azure_openai_call.py` builds the adapter from the environment, sends one request, prints text, usage, model and stop reason, never the key. It replaces the untracked scratch `scripts/first_azure_call.py` (which dumps the raw response JSON and loads `.env` with an undeclared `python-dotenv`; the owner decides whether to keep or delete it). The evidence document states what it does not show: latency, cost, failure kinds other than those actually observed, reasoning-heavy answers, content-filter blocks.
 - CI does not run the script (it is not under `tests/`, and the workflow only runs `pytest` and `ruff`).

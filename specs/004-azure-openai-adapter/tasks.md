@@ -58,8 +58,9 @@ of it, US3 adds failures, US4 adds settings, US5 documents one real call.
   is a plain `APIStatusError`, `request_id` on the error, `AsyncOpenAI(..., max_retries=0)` keeps
   `max_retries == 0` and `timeout` readable. Replace any difference in research.md
   **Result: all facts confirmed on 3.55.1 in the project environment: `finish_reason` values, `content` and `usage` optional, `APITimeoutError` subclass of `APIConnectionError`, no `RequestTimeoutError`, `max_retries == 0` and `timeout` readable, and a 408 raises a plain `APIStatusError` (`request_id` is `None` when the header is absent). No change to research.md D4/D6.**
-- [ ] T005 [P] Decide the future of the untracked scratch `scripts/first_azure_call.py` with the
+- [X] T005 [P] Decide the future of the untracked scratch `scripts/first_azure_call.py` with the
   owner (delete, or keep out of the commit). It is replaced by T031
+  **Done: the owner chose to delete it; it was never versioned.**
 
 **Checkpoint**: baseline green, `openai` installed, SDK facts confirmed
 
@@ -242,7 +243,7 @@ file imports the module with no `AZURE_*` variables set.
 
 ### Tests for US4 (write first, confirm red)
 
-- [ ] T026 [US4] *(owner)* Test 10 in `tests/test_llm_azure_adapter.py`, parameterized over 4 cases
+- [X] T026 [US4] *(owner)* Test 10 in `tests/test_llm_azure_adapter.py`, parameterized over 4 cases
   (`AZURE_OPENAI_BASE_URL` missing, `AZURE_OPENAI_API_KEY` missing, `AZURE_OPENAI_DEPLOYMENT`
   missing, `AZURE_OPENAI_BASE_URL=not a url`): using `monkeypatch` and `tmp_path` (chdir, so no
   local `.env` is read, as in the Anthropic tests), `AzureOpenAILLMClient.from_env()` raises
@@ -250,10 +251,11 @@ file imports the module with no `AZURE_*` variables set.
   value. No subprocess: the module is imported at the top of the test file, in an environment
   without `AZURE_*` variables in CI, which is what shows it does not fail at import (FR-013);
   note this in a comment. Run: red
+  **Red observed: 4 cases failed with `AttributeError` (no `from_env`). Used `from_env()` through `monkeypatch`; the invalid-URL case checks that the supplied value is not echoed.**
 
 ### Implementation for US4
 
-- [ ] T027 [US4] *(owner)* In `src/disputes/llm/settings.py` add `AzureOpenAISettings`
+- [X] T027 [US4] *(owner)* In `src/disputes/llm/settings.py` add `AzureOpenAISettings`
   (`BaseSettings`, `env_file=".env"`, `extra="ignore"`) with exactly these fields and rules
   (data-model.md): `azure_openai_base_url` required, valid HTTP(S) URL; `azure_openai_api_key`
   required, `SecretStr`; `azure_openai_deployment` required, `min_length=1`; `llm_timeout_seconds`
@@ -262,14 +264,21 @@ file imports the module with no `AZURE_*` variables set.
   never from the supplied value. Reuse the existing error-building code by extracting it to a small
   private helper shared with `load_settings`; the behavior and the tests of `load_settings` must not
   change (`tests/test_llm_settings.py` runs unmodified)
-- [ ] T028 [US4] *(owner)* In `src/disputes/llm/azure_openai_adapter.py` add
+  **Done: `AzureOpenAISettings` (`AnyHttpUrl`, `SecretStr`, `min_length=1`, timeout default 60 and `gt=0`) and `load_azure_settings`; `load_settings` now shares a private generic `_load` and its 14 tests in `tests/test_llm_settings.py` pass unmodified.**
+
+- [X] T028 [US4] *(owner)* In `src/disputes/llm/azure_openai_adapter.py` add
   `AzureOpenAILLMClient.from_env()` using `load_azure_settings()` (never at import)
-- [ ] T029 [US4] [P] *(AI may draft)* Add the Azure variables to `.env.example` with placeholders
+  **Done.**
+
+- [X] T029 [US4] [P] *(AI may draft)* Add the Azure variables to `.env.example` with placeholders
   only (`AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`; a note that
   `LLM_TIMEOUT_SECONDS` is shared and `LLM_MODEL` is not used by this adapter). No real value
-- [ ] T030 [US4] Run T026: green. Run `uv run pytest tests/test_llm_settings.py`: unchanged and green.
+  **Done: placeholders only.**
+
+- [X] T030 [US4] Run T026: green. Run `uv run pytest tests/test_llm_settings.py`: unchanged and green.
   Optionally check by hand that `repr(load_azure_settings())` shows the key masked (it is
   Pydantic's `SecretStr`; not a test, the framework guarantees it)
+  **Green: Azure file 25 cases + settings tests pass. Checked by hand: `from_env()` builds with all variables set and `repr(load_azure_settings())` shows `SecretStr('**********')`. Full suite 434 passed; `ruff check .` clean.**
 
 **Checkpoint**: configuration safe and lazy. US4 done (1 test function, 4 cases). All 10 test
 functions exist
@@ -282,25 +291,32 @@ functions exist
 
 **Independent Test**: Read the evidence file; confirm CI does not run the script.
 
-- [ ] T031 [US5] [P] *(AI may draft)* Create `scripts/azure_openai_call.py` in the style of
+- [X] T031 [US5] [P] *(AI may draft)* Create `scripts/manual_azure_openai_call.py` in the style of
   `scripts/manual_anthropic_call.py`: build the adapter with `from_env()`, send one request
   (system prompt, one question, a maximum of output tokens), print text, input and output tokens,
   the model name reported, the stop reason and `repr(client)`; never print the key; on an
   `LLMError` print class, `retryable`, `status_code`, `request_id`. Do not add `python-dotenv` as a
   dependency (settings already read `.env`)
-- [ ] T032 [US5] Owner runs the script once against the real deployment with their local `.env`
+  **Done as `scripts/manual_azure_openai_call.py` (same naming as the Anthropic script; the planned name `azure_openai_call.py` was changed in the docs). Checked without a key: prints the configuration error naming the three variables; with `CI=1` it refuses to run. The real call itself is T032 (owner).**
+
+- [X] T032 [US5] Owner runs the script once against the real deployment with their local `.env`
   (never committed) and keeps the printed output. Confirm in that run whether the `system` role was
   accepted (plan, open items): if it is rejected, switch to the accepted role in the adapter, fix
   the test of T007 first (red), then the code (green), and record the change
-- [ ] T033 [US5] *(AI may draft)* Write `docs/evidence/llm-client-azure-openai.md` from the real
+  **Done 2026-11-18. First run failed with `LLMProviderUnavailableError` (the configured host did not resolve in DNS; recorded in the evidence); the next run succeeded: answer returned, 35 input and 29 output tokens, model `gpt-5.4-mini-2026-03-17`, stop `completed`. The `system` role was accepted, so no adapter change was needed.**
+
+- [X] T033 [US5] *(AI may draft)* Write `docs/evidence/llm-client-azure-openai.md` from the real
   output: date, deployment type, script path and command, the output as printed, what it shows, and
   **what it does not show**: latency, cost, failure kinds other than those actually observed,
   reasoning-heavy answers (reasoning tokens counted inside completion tokens is unverified),
   content-filter blocks, the `system`-versus-`developer` finding. No secret, no resource name that
   identifies the owner's subscription
-- [ ] T034 [US5] Check that `.github/workflows/ci.yml` runs only `pytest` and `ruff` (it does not
+  **Done: `docs/evidence/llm-client-azure-openai.md`, with the successful call, the earlier connection failure and the limits.**
+
+- [X] T034 [US5] Check that `.github/workflows/ci.yml` runs only `pytest` and `ruff` (it does not
   run `scripts/`) and that the evidence document contains no key, no real endpoint and no
   subscription details (`git grep` for the key prefix and for `openai.azure.com`)
+  **Result: `ci.yml` only runs `uv run ruff check .` and `uv run pytest` (plus the image job); `scripts/` is not run. A scan of all tracked and new files for the real key, the endpoint host and the resource name found nothing (values compared in memory, not printed). `.env` is ignored by git.**
 
 **Checkpoint**: evidence recorded and honest. US5 done
 
@@ -308,26 +324,34 @@ functions exist
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T035 Run the whole suite and lint: `uv run pytest` and `uv run ruff check .`; record the
+- [X] T035 Run the whole suite and lint: `uv run pytest` and `uv run ruff check .`; record the
   number of passing tests (T001's number plus this feature's cases) and that no 001-003 test file
   changed (`git diff --stat develop -- tests/` shows only new files)
-- [ ] T036 Confirm FR-016 and FR-019 mechanically: `git grep -n "import openai\|from openai"
+- [X] T036 Confirm FR-016 and FR-019 mechanically: `git grep -n "import openai\|from openai"
   src/` lists only `src/disputes/llm/azure_openai_adapter.py`; `git diff develop --stat` shows no
   edits to `tests/fake_llm.py`, `tests/test_llm_*` of feature 003, or `anthropic_adapter.py`
-- [ ] T037 Run the manual checks of quickstart.md sections 2 and 3 (swap the adapter in a tiny
+  **Result: `git grep` finds `import openai` only in `src/disputes/llm/azure_openai_adapter.py`; against `develop`, `tests/` has only new files (`llm_harness.py`, `test_llm_azure_adapter.py`, `test_llm_contract.py`); `anthropic_adapter.py`, `fake_llm.py` and the 003 tests are untouched.**
+  **Result: 434 passed (382 baseline + 52 new cases); `ruff check .` clean; `git diff` against `develop` shows only new test files.**
+
+- [X] T037 Run the manual checks of quickstart.md sections 2 and 3 (swap the adapter in a tiny
   caller; empty-environment import; `from_env()` builds with all variables set and names the
   first missing one otherwise) and record the outcome
-- [ ] T038 [P] *(AI may draft)* Update docs, claiming only what exists and is tested: README
+  **Result: `from_env()` builds with all variables set (repr shows the deployment only, key masked in the settings); with none set it names the three missing variables; the shared suite is the proof that a caller written against `LLMClient` works with both adapters.**
+
+- [X] T038 [P] *(AI may draft)* Update docs, claiming only what exists and is tested: README
   (the Azure adapter exists; the roadmap row), `docs/ARCHITECTURE.md` (a second adapter; the
   known inconsistency: Anthropic returns empty text when there is no text, Azure raises), and the
   "Estado actual", roadmap table and "Decisiones ya tomadas" in `CLAUDE.md` (adapter done; settings
   names; no-text decision; `max_completion_tokens`; the roadmap numbering: this feature took
   Spec Kit number 004, while the roadmap reserves 004 for intake; reconcile the table)
-- [ ] T039 Review FR-021 (nothing out of scope slipped in: no retries, streaming, tools, structured
+  **Done: README (adapter, shared tests, evidence, variables, roadmap), `docs/ARCHITECTURE.md` (diagram, component table, known inconsistency, decision row) and `CLAUDE.md` (Estado actual, roadmap, Decisiones). Roadmap numbering reconciled: this feature keeps Spec Kit number 004; intake will be 005. The roadmap's own numbers are left as they were.**
+
+- [X] T039 Review FR-021 (nothing out of scope slipped in: no retries, streaming, tools, structured
   output, sampling parameters, Entra authentication, endpoint, caching, cost calculation) by reading
   the diff. Owner explains every new test and every adapter line aloud (or in writing) before the
   commit, per the constitution's workflow rule. Open the PR to `develop` only when the owner asks;
   CI must be green before merging
+  **Part 1 done (FR-021 review): the adapter and settings contain no streaming, tools, response format, sampling parameters, retries/backoff, Entra authentication, endpoint, caching or cost code; the only `retry` mention is `max_retries=0`. Part 2 (owner explains every new test and adapter line) confirmed by the owner on 2026-11-19, who asked for the commit, push and PR.**
 
 ---
 

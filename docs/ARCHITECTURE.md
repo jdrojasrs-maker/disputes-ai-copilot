@@ -21,14 +21,14 @@ flowchart LR
         api["FastAPI app<br/>routes, error handlers<br/>(Exists)"]
         domain["Models + state rules<br/>(Exists)"]
         repo["DisputeRepository<br/>(Protocol)<br/>(Exists: in-memory;<br/>Planned: PostgreSQL)"]
-        llm["LLMClient<br/>(Exists: interface, fake,<br/>Anthropic adapter;<br/>Planned: Azure OpenAI)"]
+        llm["LLMClient<br/>(Exists: interface, fake,<br/>Anthropic and Azure OpenAI adapters)"]
         rag["Retriever + pgvector<br/>(Planned)"]
         agent["LangGraph agent<br/>(Planned)"]
         mcp["MCP server, read-only<br/>(Planned)"]
         obs["Langfuse, Redis cache<br/>(Planned)"]
     end
     bank[("Bank<br/>(.NET, events)<br/>read-only, synthetic data")]
-    providers(["Anthropic API (Exists)<br/>Azure OpenAI (Planned)"])
+    providers(["Anthropic API (Exists)<br/>Azure OpenAI (Exists)"])
 
     client --> api
     api --> domain
@@ -57,10 +57,12 @@ Solid lines exist today; dashed lines are planned. The `LLMClient` box exists, b
 | Errors | `src/disputes/errors.py` | One error envelope for validation errors, not-found, invalid transitions (`409`) and framework HTTP errors |
 | LLM interface and models | `src/disputes/llm/client.py`, `models.py` | `LLMClient` Protocol (`complete`); frozen Pydantic `Message`, `LLMRequest`, `TokenUsage`, `LLMResponse`, `StopReason`; no sampling parameters |
 | LLM errors | `src/disputes/llm/errors.py` | `LLMError` and five subclasses, each with a `retryable` class attribute; `LLMConfigurationError`, which is deliberately not an `LLMError` |
-| LLM settings | `src/disputes/llm/settings.py` | `ANTHROPIC_API_KEY` (secret), `LLM_MODEL`, `LLM_TIMEOUT_SECONDS`; read on demand, never at import |
+| LLM settings | `src/disputes/llm/settings.py` | Anthropic: `ANTHROPIC_API_KEY` (secret), `LLM_MODEL`. Azure OpenAI: `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_API_KEY` (secret), `AZURE_OPENAI_DEPLOYMENT`. Both: `LLM_TIMEOUT_SECONDS`. Read on demand, never at import |
 | Anthropic adapter | `src/disputes/llm/anthropic_adapter.py` | The only module that imports the provider SDK; one attempt per call (SDK retries off); translates the SDK's errors |
+| Azure OpenAI adapter | `src/disputes/llm/azure_openai_adapter.py` | The only module that imports the `openai` SDK; one attempt per call (SDK retries off); sends `max_completion_tokens` and the deployment name; an answer with no text or no usage raises the base `LLMError` |
+| Shared behavior tests | `tests/test_llm_contract.py`, `tests/llm_harness.py` | One suite run against the fake and both adapters through a small harness, with no network |
 | Fake client | `tests/fake_llm.py` | Test double with scripted answers and failures; lives in `tests/`, not in the shipped package |
-| Manual call and evidence | `scripts/manual_anthropic_call.py`, `docs/evidence/` | One real call, run by hand and never in CI |
+| Manual calls and evidence | `scripts/manual_anthropic_call.py`, `scripts/manual_azure_openai_call.py`, `docs/evidence/` | One real call per provider, run by hand and never in CI |
 | Contract | `specs/002-dispute-state-transitions/contracts/` | Current OpenAPI contract (create, get, transition). Feature 001's contract is kept unchanged as the record of that feature. Key parts are checked by tests |
 
 Request flow today: the request is validated by Pydantic at the boundary, the route builds a `Dispute` with system-assigned fields (`id`, `state`, `created_at`, `updated_at`, an empty `history`), and the repository stores it.
@@ -72,7 +74,7 @@ Transition flow: the route reads the dispute (`404` if missing), checks `is_allo
 - **Storage is in memory.** Data is lost on restart. With more than one worker process, each process has its own memory, so a dispute created in one worker is not visible from another. This is acceptable only until the PostgreSQL feature.
 - **Atomic transitions hold inside one process.** The lock in the in-memory repository protects one process; with several workers each has its own memory and lock. PostgreSQL removes this limit.
 - **No authentication**, and the referenced transaction is not verified to exist.
-- **No endpoint uses the LLM client yet.** The client and its Anthropic adapter exist and were exercised by one manual call; there is no AI behavior in the API.
+- **No endpoint uses the LLM client yet.** The client and its two adapters exist and each was exercised by one manual call; there is no AI behavior in the API. The adapters differ in one case: for an answer with no text, Anthropic returns empty text and Azure OpenAI raises `LLMError`.
 
 ## 4. Design decisions
 
@@ -86,7 +88,7 @@ Transition flow: the route reads the dispute (`404` if missing), checks `is_allo
 | A compare-and-set that fails is refused with `409`, not retried | A retry would hide conflicts and make the result depend on timing; the caller can read the dispute again and decide | Exists |
 | Change history embedded in the dispute (`history`), with `updated_at` | One record answers "what changed and when" without a second store; the entries are never edited or removed | Exists |
 | Container image built in two stages, non-root, one uvicorn process; CI builds it and smoke-tests `/health` | A reproducible artifact (`uv sync --locked`) with no build tools or dev dependencies in the final stage. One process because the in-memory store and its lock are per process | Exists (not pushed to a registry) |
-| `LLMClient` interface with one implementation per provider | Independence from a single provider; tests use a fake with no network | Exists (interface, fake, Anthropic adapter); Azure OpenAI adapter Planned |
+| `LLMClient` interface with one implementation per provider | Independence from a single provider; tests use a fake with no network | Exists (interface, fake, Anthropic and Azure OpenAI adapters) |
 | The adapter makes one attempt per call; failures carry a `retryable` flag; retries and backoff are a later, deliberate feature | A hidden retry (the SDK's default) would multiply calls and cost without anyone deciding it. The flag lets a retry layer be added without changing the errors or the adapter | Exists (flag, no retry) |
 | The API key is a `SecretStr`; the service builds its own error messages and raises them after the `except` block | The provider's exception holds the outgoing request, key included. Raising outside the block leaves neither `__cause__` nor `__context__` pointing at it | Exists |
 | Settings are built when the adapter is built, not at import; a missing key names the variable | Importing the package must work without a key, and the failure must say what to fix | Exists |
