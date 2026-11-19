@@ -40,20 +40,24 @@ of it, US3 adds failures, US4 adds settings, US5 documents one real call.
 
 **Purpose**: Confirm the baseline, branch, add the dependency, check install-time facts
 
-- [ ] T001 On the current branch run `uv sync`, `uv run pytest` and `uv run ruff check .`; record
+- [X] T001 On the current branch run `uv sync`, `uv run pytest` and `uv run ruff check .`; record
   the number of passing tests (read it from the output, do not assume) and that lint is clean
-- [ ] T002 Create the implementation branch `feat/004-azure-openai-adapter` from `develop`; decide
+  **Result (2026-11-18, `feat/004-azure-openai-adapter`, same code as `develop`): 382 passed in 16.84 s. `ruff check .` clean for tracked files; its only finding is the untracked scratch `scripts/first_azure_call.py` (import order), see T005.**
+- [X] T002 Create the implementation branch `feat/004-azure-openai-adapter` from `develop`; decide
   with the owner how the spec artifacts (`specs/004-azure-openai-adapter/`, `.specify/feature.json`)
   reach it (docs commit first, as in feature 003)
-- [ ] T003 Add the dependency with `uv add openai`; check that only `pyproject.toml` and
+  **Done: branch created from `develop`; spec artifacts committed as `9c50395`.**
+- [X] T003 Add the dependency with `uv add openai`; check that only `pyproject.toml` and
   `uv.lock` changed; record the installed version in `specs/004-azure-openai-adapter/research.md`
   (D2)
-- [ ] T004 [P] Re-check, with throwaway commands in the scratch area (not committed), the SDK
+  **Result: `openai 3.55.1` (`openai>=3.55.1` in `pyproject.toml`); only `pyproject.toml` and `uv.lock` changed.**
+- [X] T004 [P] Re-check, with throwaway commands in the scratch area (not committed), the SDK
   facts of research.md D4 and D6 (first read in a scratch environment) against the version
   actually installed in the project: `finish_reason`
   values, `content` and `usage` optional, `APITimeoutError` subclass of `APIConnectionError`, 408
   is a plain `APIStatusError`, `request_id` on the error, `AsyncOpenAI(..., max_retries=0)` keeps
   `max_retries == 0` and `timeout` readable. Replace any difference in research.md
+  **Result: all facts confirmed on 3.55.1 in the project environment: `finish_reason` values, `content` and `usage` optional, `APITimeoutError` subclass of `APIConnectionError`, no `RequestTimeoutError`, `max_retries == 0` and `timeout` readable, and a 408 raises a plain `APIStatusError` (`request_id` is `None` when the header is absent). No change to research.md D4/D6.**
 - [ ] T005 [P] Decide the future of the untracked scratch `scripts/first_azure_call.py` with the
   owner (delete, or keep out of the commit). It is replaced by T031
 

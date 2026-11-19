@@ -14,6 +14,7 @@ environment (Python 3.12), not from memory. Anything neither observed nor read i
 ## D2: Dependency
 
 - **Decision**: add `openai>=3.55`. It depends on `httpx2`, as `anthropic` and the tests already do, so tests keep using `httpx2.MockTransport`.
+- **Installed**: `openai 3.55.1` (T003).
 - **Verified**: `openai` 3.55.1 requires `httpx2<3,>=2.12.0` (package metadata).
 
 ## D3: Outgoing request
